@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-label="LoveService demo flow">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0c0c18"/>
+      <stop offset="1" stop-color="#1b0f2b"/>
+    </linearGradient>
+    <linearGradient id="p1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff4d8d"/>
+      <stop offset="1" stop-color="#ff9a6c"/>
+    </linearGradient>
+    <linearGradient id="p2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7b61ff"/>
+      <stop offset="1" stop-color="#4ecdc4"/>
+    </linearGradient>
+    <filter id="glow2"><feGaussianBlur stdDeviation="12"/></filter>
+  </defs>
+  <rect width="1200" height="560" fill="url(#bg2)"/>
+
+  <text x="600" y="52" text-anchor="middle" font-family="Arial" font-size="28" font-weight="700" fill="#ffffff">Как это работает</text>
+  <text x="600" y="80" text-anchor="middle" font-family="Arial" font-size="14" fill="#9a94b8">один backend — регистрация, геопоиск, свайпы, мэтчи и чат</text>
+
+  <!-- Step 1 -->
+  <g transform="translate(55 115)">
+    <rect width="330" height="390" rx="28" fill="#12121f" stroke="#ff4d8d" stroke-opacity="0.35"/>
+    <text x="24" y="38" font-family="Arial" font-size="13" fill="#ff8db7" letter-spacing="2">01 · РЕГИСТРАЦИЯ</text>
+    <rect x="86" y="58" width="158" height="292" rx="22" fill="#0d0d17" stroke="#2d2d47"/>
+    <rect x="64" y="76" width="202" height="30" rx="8" fill="#1e1e31"/>
+    <text x="76" y="96" font-family="monospace" font-size="10" fill="#8f9bb3">demo@loveservice.app</text>
+    <rect x="64" y="114" width="202" height="30" rx="8" fill="#1e1e31"/>
+    <text x="76" y="134" font-family="monospace" font-size="10" fill="#8f9bb3">LoveDemo123!</text>
+    <rect x="64" y="158" width="202" height="34" rx="17" fill="url(#p1)"/>
+    <text x="165" y="180" text-anchor="middle" font-family="Arial" font-size="12" font-weight="700" fill="#ffffff">Создать аккаунт</text>
+    <text x="165" y="218" text-anchor="middle" font-family="Arial" font-size="10" fill="#6f6f92">код подтверждения</text>
+    <text x="165" y="248" text-anchor="middle" font-family="monospace" font-size="24" font-weight="700" fill="#ff8db7">123456
+      <animate attributeName="opacity" values="1;0.25;1" dur="2.4s" repeatCount="indefinite"/>
+    </text>
+    <text x="165" y="282" text-anchor="middle" font-family="Arial" font-size="9" fill="#4ecdc4">JWT access + refresh</text>
+    <text x="165" y="318" text-anchor="middle" font-family="Arial" font-size="9" fill="#6f6f92">18+ · bcrypt · rate limit</text>
+  </g>
+
+  <!-- Step 2 -->
+  <g transform="translate(435 115)">
+    <rect width="330" height="390" rx="28" fill="#12121f" stroke="#c86dd7" stroke-opacity="0.35"/>
+    <text x="24" y="38" font-family="Arial" font-size="13" fill="#d9a9ff" letter-spacing="2">02 · ГЕОПОИСК И СВАЙП</text>
+    <rect x="86" y="58" width="158" height="292" rx="22" fill="#0d0d17" stroke="#2d2d47"/>
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="0 0; 70 -8; 70 -8" keyTimes="0;0.55;1" dur="5s" repeatCount="indefinite"/>
+      <rect x="98" y="76" width="134" height="176" rx="16" fill="url(#p2)"/>
+      <circle cx="165" cy="140" r="32" fill="#ffffff" opacity="0.2"/>
+      <text x="165" y="152" text-anchor="middle" font-family="Arial" font-size="28" font-weight="700" fill="#ffffff">М</text>
+      <text x="165" y="196" text-anchor="middle" font-family="Arial" font-size="14" font-weight="700" fill="#ffffff">Мария, 29</text>
+      <text x="165" y="216" text-anchor="middle" font-family="Arial" font-size="10" fill="#ffffff" opacity="0.8">3.2 км · Москва</text>
+      <text x="165" y="236" text-anchor="middle" font-family="Arial" font-size="9" fill="#ffffff" opacity="0.75">сальса · музыка · вино</text>
+      <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.7;1" dur="5s" repeatCount="indefinite"/>
+    </g>
+    <text x="165" y="292" text-anchor="middle" font-family="Arial" font-size="10" fill="#8f9bb3">радиус: 5 → 12.5 → 30 км</text>
+    <circle cx="120" cy="320" r="14" fill="#24243a"/>
+    <text x="120" y="325" text-anchor="middle" font-family="Arial" font-size="12" fill="#ff6b8a">✕</text>
+    <circle cx="165" cy="320" r="17" fill="#ff4d8d"/>
+    <text x="165" y="326" text-anchor="middle" font-family="Arial" font-size="13" fill="#fff">♥</text>
+    <circle cx="210" cy="320" r="14" fill="#24243a"/>
+    <text x="210" y="325" text-anchor="middle" font-family="Arial" font-size="11" fill="#ffd166">★</text>
+    <text x="165" y="360" text-anchor="middle" font-family="Arial" font-size="9" fill="#4ecdc4">Это взаимно! → match + chat</text>
+  </g>
+
+  <!-- Step 3 -->
+  <g transform="translate(815 115)">
+    <rect width="330" height="390" rx="28" fill="#12121f" stroke="#4ecdc4" stroke-opacity="0.35"/>
+    <text x="24" y="38" font-family="Arial" font-size="13" fill="#7ee8dc" letter-spacing="2">03 · ЧАТ В REAL-TIME</text>
+    <rect x="86" y="58" width="158" height="292" rx="22" fill="#0d0d17" stroke="#2d2d47"/>
+    <rect x="98" y="72" width="134" height="28" rx="8" fill="#1b1b2e"/>
+    <circle cx="114" cy="86" r="7" fill="#ff7aa8"/>
+    <text x="128" y="90" font-family="Arial" font-size="9" fill="#ffffff">Анна · онлайн</text>
+    <g font-family="Arial" font-size="9">
+      <rect x="106" y="114" width="96" height="24" rx="12" fill="#25253c"/>
+      <text x="116" y="130" fill="#d8d8ea">Привет! Как дела?</text>
+      <rect x="132" y="148" width="88" height="24" rx="12" fill="#ff4d8d" opacity="0.9">
+        <animate attributeName="opacity" values="0;0;0.9;0.9" keyTimes="0;0.35;0.55;1" dur="6s" repeatCount="indefinite"/>
+      </rect>
+      <text x="142" y="164" fill="#ffffff">Отлично! Ты?
+        <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.4;0.6;1" dur="6s" repeatCount="indefinite"/>
+      </text>
+      <rect x="106" y="182" width="112" height="24" rx="12" fill="#25253c">
+        <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.55;0.7;1" dur="6s" repeatCount="indefinite"/>
+      </rect>
+      <text x="116" y="198" fill="#d8d8ea">Кофе завтра?
+        <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.6;0.75;1" dur="6s" repeatCount="indefinite"/>
+      </text>
+    </g>
+    <g transform="translate(112 246)" fill="#7a7a99">
+      <circle cx="0" cy="0" r="3"><animate attributeName="cy" values="0;-4;0" dur="1.2s" repeatCount="indefinite"/></circle>
+      <circle cx="10" cy="0" r="3"><animate attributeName="cy" values="0;-4;0" dur="1.2s" begin="0.2s" repeatCount="indefinite"/></circle>
+      <circle cx="20" cy="0" r="3"><animate attributeName="cy" values="0;-4;0" dur="1.2s" begin="0.4s" repeatCount="indefinite"/></circle>
+    </g>
+    <rect x="98" y="292" width="134" height="30" rx="15" fill="#1e1e31"/>
+    <text x="110" y="311" font-family="Arial" font-size="9" fill="#6f6f92">Сообщение…</text>
+    <circle cx="218" cy="307" r="10" fill="#ff4d8d"/>
+    <text x="218" y="311" text-anchor="middle" font-family="Arial" font-size="9" fill="#fff">➤</text>
+    <text x="165" y="360" text-anchor="middle" font-family="Arial" font-size="9" fill="#7ee8dc">WebSocket · typing · read receipts</text>
+  </g>
+
+  <g fill="#ff4d8d">
+    <path d="M395 300 c-7 -10 -21 -6 -21 7 c0 9 11 15 21 23 c10 -8 21 -14 21 -23 c0 -13 -14 -17 -21 -7z">
+      <animateTransform attributeName="transform" type="translate" values="0 0; 8 -8; 0 0" dur="3s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.4;1;0.4" dur="3s" repeatCount="indefinite"/>
+    </path>
+    <path d="M775 300 c-7 -10 -21 -6 -21 7 c0 9 11 15 21 23 c10 -8 21 -14 21 -23 c0 -13 -14 -17 -21 -7z">
+      <animateTransform attributeName="transform" type="translate" values="0 0; 8 -8; 0 0" dur="3s" begin="1.5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.4;1;0.4" dur="3s" begin="1.5s" repeatCount="indefinite"/>
+    </path>
+  </g>
+</svg>

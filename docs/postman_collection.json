@@ -1,0 +1,470 @@
+{
+  "info": {
+    "name": "LoveService API",
+    "_postman_id": "b6f0d1e2-4a1c-4f6e-9a77-1d2c3b4a5e60",
+    "description": "LoveService dating backend.\n\nProtected requests use the collection variable {{accessToken}}.\nRun **Auth → Login** first; the test script stores tokens automatically.\n\n⚠️ The **Admin** and **Technical Admin / Lawful Access** folders call privileged endpoints for moderators/administrators. Technical-admin exports are for verified law-enforcement / national-security requests only and are fully audited.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "baseUrl", "value": "http://localhost:8080", "type": "string"},
+    {"key": "accessToken", "value": "", "type": "string"},
+    {"key": "refreshToken", "value": "", "type": "string"},
+    {"key": "userID", "value": "", "type": "string"},
+    {"key": "targetUserID", "value": "", "type": "string"},
+    {"key": "matchID", "value": "", "type": "string"},
+    {"key": "conversationID", "value": "", "type": "string"},
+    {"key": "notificationID", "value": "", "type": "string"},
+    {"key": "mediaID", "value": "", "type": "string"},
+    {"key": "legalRequestID", "value": "", "type": "string"},
+    {"key": "reportID", "value": "", "type": "string"}
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{"key": "token", "value": "{{accessToken}}", "type": "string"}]
+  },
+  "item": [
+    {
+      "name": "Health & Docs",
+      "item": [
+        {"name": "Health", "request": {"method": "GET", "url": "{{baseUrl}}/health", "auth": {"type": "noauth"}}},
+        {"name": "Ready", "request": {"method": "GET", "url": "{{baseUrl}}/ready", "auth": {"type": "noauth"}}},
+        {"name": "OpenAPI YAML", "request": {"method": "GET", "url": "{{baseUrl}}/openapi.yaml", "auth": {"type": "noauth"}}},
+        {"name": "Swagger UI", "request": {"method": "GET", "url": "{{baseUrl}}/docs", "auth": {"type": "noauth"}}}
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [{"listen": "test", "script": {"exec": [
+            "const body = pm.response.json();",
+            "if (body.data && body.data.tokens) {",
+            "  pm.collectionVariables.set('accessToken', body.data.tokens.access_token);",
+            "  pm.collectionVariables.set('refreshToken', body.data.tokens.refresh_token);",
+            "  pm.collectionVariables.set('userID', body.data.user.id);",
+            "}",
+            "if (body.data && body.data.dev_code) console.log('dev verification code:', body.data.dev_code);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"email\": \"new.user@example.com\",\n  \"password\": \"StrongPass123!\",\n  \"display_name\": \"Новый пользователь\",\n  \"birth_date\": \"1997-06-15\",\n  \"gender\": \"female\",\n  \"phone\": \"+79990001122\",\n  \"preferred_genders\": [\"male\"]\n}"},
+            "url": "{{baseUrl}}/api/v1/auth/register",
+            "auth": {"type": "noauth"}
+          }
+        },
+        {
+          "name": "Login (demo)",
+          "event": [{"listen": "test", "script": {"exec": [
+            "const body = pm.response.json();",
+            "if (body.data && body.data.tokens) {",
+            "  pm.collectionVariables.set('accessToken', body.data.tokens.access_token);",
+            "  pm.collectionVariables.set('refreshToken', body.data.tokens.refresh_token);",
+            "  pm.collectionVariables.set('userID', body.data.user.id);",
+            "}"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"email\": \"demo@loveservice.app\",\n  \"password\": \"LoveDemo123!\"\n}"},
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "auth": {"type": "noauth"}
+          }
+        },
+        {
+          "name": "Login (technical admin)",
+          "event": [{"listen": "test", "script": {"exec": [
+            "const body = pm.response.json();",
+            "if (body.data && body.data.tokens) {",
+            "  pm.collectionVariables.set('accessToken', body.data.tokens.access_token);",
+            "  pm.collectionVariables.set('refreshToken', body.data.tokens.refresh_token);",
+            "  pm.collectionVariables.set('userID', body.data.user.id);",
+            "}"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"email\": \"admin@loveservice.app\",\n  \"password\": \"AdminDemo123!\"\n}"},
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "auth": {"type": "noauth"}
+          }
+        },
+        {
+          "name": "Refresh",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}"},
+            "url": "{{baseUrl}}/api/v1/auth/refresh",
+            "auth": {"type": "noauth"}
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}"},
+            "url": "{{baseUrl}}/api/v1/auth/logout",
+            "auth": {"type": "noauth"}
+          }
+        },
+        {
+          "name": "Me",
+          "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/auth/me"}
+        },
+        {
+          "name": "Verify email",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"email\": \"new.user@example.com\",\n  \"code\": \"123456\"\n}"},
+            "url": "{{baseUrl}}/api/v1/auth/verify-email",
+            "auth": {"type": "noauth"}
+          }
+        },
+        {
+          "name": "Resend verification",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"email\": \"new.user@example.com\"\n}"},
+            "url": "{{baseUrl}}/api/v1/auth/resend-verification",
+            "auth": {"type": "noauth"}
+          }
+        },
+        {
+          "name": "Forgot password",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"email\": \"demo@loveservice.app\"\n}"},
+            "url": "{{baseUrl}}/api/v1/auth/forgot-password",
+            "auth": {"type": "noauth"}
+          }
+        },
+        {
+          "name": "Reset password",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"email\": \"new.user@example.com\",\n  \"code\": \"123456\",\n  \"new_password\": \"NewStrongPass123!\"\n}"},
+            "url": "{{baseUrl}}/api/v1/auth/reset-password",
+            "auth": {"type": "noauth"}
+          }
+        },
+        {
+          "name": "Change password",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"current_password\": \"LoveDemo123!\",\n  \"new_password\": \"LoveDemo123!\"\n}"},
+            "url": "{{baseUrl}}/api/v1/auth/change-password"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "item": [
+        {"name": "Get my profile", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/profiles/me"}},
+        {
+          "name": "Update my profile",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"bio\": \"Люблю кофе и долгие прогулки.\",\n  \"city\": \"Москва\",\n  \"country\": \"Россия\",\n  \"height_cm\": 182,\n  \"job\": \"Backend engineer\",\n  \"education\": \"МГУ\",\n  \"interests\": [\"кофе\", \"велосипед\", \"кино\"],\n  \"looking_for\": [\"female\"]\n}"},
+            "url": "{{baseUrl}}/api/v1/profiles/me"
+          }
+        },
+        {
+          "name": "Update location",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"lat\": 55.7558,\n  \"lng\": 37.6173\n}"},
+            "url": "{{baseUrl}}/api/v1/profiles/me/location"
+          }
+        },
+        {"name": "Get another profile", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/profiles/{{targetUserID}}"}},
+        {"name": "Get preferences", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/profiles/me/preferences"}},
+        {
+          "name": "Update preferences",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"min_age\": 18,\n  \"max_age\": 40,\n  \"max_distance_km\": 100,\n  \"preferred_genders\": [\"female\"],\n  \"global_mode\": false\n}"},
+            "url": "{{baseUrl}}/api/v1/profiles/me/preferences"
+          }
+        },
+        {"name": "Get settings", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/profiles/me/settings"}},
+        {
+          "name": "Update settings",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"notifications_enabled\": true,\n  \"discoverable\": true,\n  \"show_distance\": true,\n  \"show_online\": true,\n  \"language\": \"ru\"\n}"},
+            "url": "{{baseUrl}}/api/v1/profiles/me/settings"
+          }
+        },
+        {"name": "Delete my account", "request": {"method": "DELETE", "url": "{{baseUrl}}/api/v1/profiles/me"}}
+      ]
+    },
+    {
+      "name": "Media",
+      "item": [
+        {"name": "List my media", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/profiles/me/photos"}},
+        {
+          "name": "Upload photo/video",
+          "request": {
+            "method": "POST",
+            "body": {"mode": "formdata", "formdata": [{"key": "file", "type": "file", "src": "sample.jpg"}]},
+            "url": "{{baseUrl}}/api/v1/profiles/me/photos"
+          }
+        },
+        {"name": "Delete media", "request": {"method": "DELETE", "url": "{{baseUrl}}/api/v1/profiles/me/photos/{{mediaID}}"}},
+        {"name": "Set primary photo", "request": {"method": "PATCH", "url": "{{baseUrl}}/api/v1/profiles/me/photos/{{mediaID}}/primary"}}
+      ]
+    },
+    {
+      "name": "Discovery",
+      "item": [
+        {"name": "Discover (expanding radius)", "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/v1/discovery?lat=55.7558&lng=37.6173&radius_km=10&expand=true&limit=20", "host": ["{{baseUrl}}"], "path": ["api", "v1", "discovery"], "query": [{"key": "lat", "value": "55.7558"}, {"key": "lng", "value": "37.6173"}, {"key": "radius_km", "value": "10"}, {"key": "expand", "value": "true"}, {"key": "limit", "value": "20"}]}}},
+        {"name": "Nearby count", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/discovery/nearby/count?radius_km=50"}},
+        {"name": "Incoming likes", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/discovery/likes"}},
+        {"name": "Sent likes", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/discovery/likes/sent"}},
+        {"name": "Stats", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/discovery/stats"}}
+      ]
+    },
+    {
+      "name": "Swipes",
+      "item": [
+        {
+          "name": "Like",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"target_user_id\": \"{{targetUserID}}\",\n  \"action\": \"like\"\n}"},
+            "url": "{{baseUrl}}/api/v1/swipes"
+          }
+        },
+        {
+          "name": "Dislike",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"target_user_id\": \"{{targetUserID}}\",\n  \"action\": \"dislike\"\n}"},
+            "url": "{{baseUrl}}/api/v1/swipes"
+          }
+        },
+        {
+          "name": "Superlike",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"target_user_id\": \"{{targetUserID}}\",\n  \"action\": \"superlike\"\n}"},
+            "url": "{{baseUrl}}/api/v1/swipes"
+          }
+        },
+        {"name": "Rewind", "request": {"method": "POST", "url": "{{baseUrl}}/api/v1/swipes/rewind"}},
+        {"name": "Limits", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/swipes/limits"}}
+      ]
+    },
+    {
+      "name": "Matches & Chat",
+      "item": [
+        {"name": "List matches", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/matches"}},
+        {"name": "Get match", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/matches/{{matchID}}"}},
+        {"name": "Unmatch", "request": {"method": "DELETE", "url": "{{baseUrl}}/api/v1/matches/{{matchID}}"}},
+        {"name": "List conversations", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/conversations"}},
+        {"name": "Get conversation", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/conversations/{{conversationID}}"}},
+        {"name": "List messages", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/conversations/{{conversationID}}/messages?limit=30"}},
+        {
+          "name": "Send message (nested)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"body\": \"Привет! Как проходит день?\"\n}"},
+            "url": "{{baseUrl}}/api/v1/conversations/{{conversationID}}/messages"
+          }
+        },
+        {
+          "name": "Send message",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"conversation_id\": \"{{conversationID}}\",\n  \"body\": \"Привет!\"\n}"},
+            "url": "{{baseUrl}}/api/v1/messages"
+          }
+        },
+        {"name": "Mark read", "request": {"method": "POST", "url": "{{baseUrl}}/api/v1/conversations/{{conversationID}}/read"}},
+        {"name": "Typing", "request": {"method": "POST", "url": "{{baseUrl}}/api/v1/conversations/{{conversationID}}/typing"}}
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {"name": "List notifications", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/notifications"}},
+        {"name": "Unread count", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/notifications/unread-count"}},
+        {"name": "Mark one read", "request": {"method": "POST", "url": "{{baseUrl}}/api/v1/notifications/{{notificationID}}/read"}},
+        {"name": "Mark all read", "request": {"method": "POST", "url": "{{baseUrl}}/api/v1/notifications/read-all"}}
+      ]
+    },
+    {
+      "name": "Safety & Devices",
+      "item": [
+        {"name": "List blocks", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/blocks"}},
+        {
+          "name": "Block user",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"user_id\": \"{{targetUserID}}\"\n}"},
+            "url": "{{baseUrl}}/api/v1/blocks"
+          }
+        },
+        {"name": "Unblock user", "request": {"method": "DELETE", "url": "{{baseUrl}}/api/v1/blocks/{{targetUserID}}"}},
+        {
+          "name": "Report user",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"target_user_id\": \"{{targetUserID}}\",\n  \"reason\": \"spam\",\n  \"details\": \"Отправляет рекламу в чате\"\n}"},
+            "url": "{{baseUrl}}/api/v1/reports"
+          }
+        },
+        {
+          "name": "Register device",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"platform\": \"android\",\n  \"token\": \"fcm-demo-token\"\n}"},
+            "url": "{{baseUrl}}/api/v1/devices"
+          }
+        },
+        {"name": "Delete device", "request": {"method": "DELETE", "url": "{{baseUrl}}/api/v1/devices?token=fcm-demo-token"}}
+      ]
+    },
+    {
+      "name": "Privacy",
+      "item": [
+        {"name": "Export my data", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/account/export"}}
+      ]
+    },
+    {
+      "name": "Admin (moderator / admin)",
+      "description": "Moderation endpoints. Requires a moderator or admin token. All access is written to the admin audit log.",
+      "item": [
+        {"name": "Stats", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/admin/stats"}},
+        {"name": "List users", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/admin/users?limit=50"}},
+        {"name": "Search users", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/admin/users?search=demo&status=active"}},
+        {"name": "Get user (audited)", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/admin/users/{{targetUserID}}?reason=Abuse+investigation"}},
+        {
+          "name": "Set user status",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"status\": \"banned\",\n  \"reason\": \"Repeated harassment confirmed by moderation\"\n}"},
+            "url": "{{baseUrl}}/api/v1/admin/users/{{targetUserID}}/status"
+          }
+        },
+        {
+          "name": "Set user role",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"role\": \"moderator\",\n  \"reason\": \"Promoted after trust & safety training\"\n}"},
+            "url": "{{baseUrl}}/api/v1/admin/users/{{targetUserID}}/role"
+          }
+        },
+        {
+          "name": "Verify user",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"verified\": true,\n  \"reason\": \"Passport verification completed\"\n}"},
+            "url": "{{baseUrl}}/api/v1/admin/users/{{targetUserID}}/verify"
+          }
+        },
+        {"name": "List reports", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/admin/reports?status=open"}},
+        {
+          "name": "Update report",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"status\": \"resolved\",\n  \"reason\": \"Warning issued\"\n}"},
+            "url": "{{baseUrl}}/api/v1/admin/reports/{{reportID}}"
+          }
+        },
+        {"name": "Delete photo", "request": {"method": "DELETE", "url": "{{baseUrl}}/api/v1/admin/photos/{{mediaID}}?reason=Inappropriate+content"}},
+        {
+          "name": "Broadcast notification",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"user_ids\": [\"{{targetUserID}}\"],\n  \"type\": \"system\",\n  \"title\": \"Обновление сервиса\",\n  \"body\": \"Сегодня вечером пройдут технические работы.\",\n  \"reason\": \"Planned maintenance\"\n}"},
+            "url": "{{baseUrl}}/api/v1/admin/notifications/broadcast"
+          }
+        },
+        {"name": "Purge expired data", "request": {"method": "POST", "url": "{{baseUrl}}/api/v1/admin/maintenance/purge?reason=Scheduled+retention+job"}},
+        {"name": "Audit logs", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/admin/audit-logs?limit=100"}}
+      ]
+    },
+    {
+      "name": "Technical Admin / Lawful Access",
+      "description": "⚠️ RESTRICTED: lawful access only.\n\nThese endpoints are for the technical administrator responding to verified requests from law-enforcement or national-security authorities. Create a legal request with case number, authority, country and legal basis, obtain second-admin approval (when enabled), then export. Every step is audited and the export SHA-256 is stored on the request. Passwords, hashes, refresh tokens and verification codes are never exported.",
+      "item": [
+        {
+          "name": "Create legal request",
+          "event": [{"listen": "test", "script": {"exec": [
+            "const body = pm.response.json();",
+            "if (body.data && body.data.id) pm.collectionVariables.set('legalRequestID', body.data.id);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"case_number\": \"CASE-2026-000123\",\n  \"authority\": \"National Police / Cybercrime Unit\",\n  \"country\": \"RU\",\n  \"legal_basis\": \"Court order #1234 dated 2026-01-10\",\n  \"target_user_id\": \"{{targetUserID}}\",\n  \"scopes\": [\"account\", \"profile\", \"media\", \"matches\", \"messages\"],\n  \"reason\": \"Formal written request received by the trust & safety team\"\n}"},
+            "url": "{{baseUrl}}/api/v1/admin/legal-requests",
+            "description": "⚠️ Technical admin only. Registers the legal basis before any data is disclosed."
+          }
+        },
+        {"name": "List legal requests", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/admin/legal-requests", "description": "⚠️ Technical admin only. Audited."}},
+        {"name": "Get legal request", "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/admin/legal-requests/{{legalRequestID}}", "description": "⚠️ Technical admin only. Audited."}},
+        {
+          "name": "Approve legal request",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"reason\": \"Second-admin review completed; legal basis verified\"\n}"},
+            "url": "{{baseUrl}}/api/v1/admin/legal-requests/{{legalRequestID}}/approve",
+            "description": "⚠️ Technical admin only. A different administrator must approve when second approval is enabled."
+          }
+        },
+        {
+          "name": "Export legal request",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"reason\": \"Disclosure prepared for the requesting authority\"\n}"},
+            "url": "{{baseUrl}}/api/v1/admin/legal-requests/{{legalRequestID}}/export",
+            "description": "⚠️ Technical admin only. Returns the disclosure package with SHA-256 fingerprint. Audited."
+          }
+        }
+      ]
+    },
+    {
+      "name": "WebSocket",
+      "item": [
+        {
+          "name": "WS connection notes",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/ws?token={{accessToken}}",
+            "description": "Postman cannot render a persistent WebSocket. Use the built-in WebSocket request type or wscat:\nwscat -c \"ws://localhost:8080/api/v1/ws?token={{accessToken}}\"\n\nInbound events: ping, message.send, typing, message.read.\nOutbound: ready, message.ack, message.new, match.new, notification.new, typing, message.read, error.\nSee docs/WEBSOCKET.md."
+          }
+        }
+      ]
+    }
+  ]
+}

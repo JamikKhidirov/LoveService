@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620" role="img" aria-labelledby="title desc">
+  <title id="title">LoveService request flow</title>
+  <desc id="desc">Animated sequence: discover nearby people, swipe, mutual like creates a match and conversation, then a realtime message is delivered.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1020"/><stop offset="1" stop-color="#1a1030"/>
+    </linearGradient>
+    <linearGradient id="flow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff4d8d"/><stop offset="0.5" stop-color="#7c5cff"/><stop offset="1" stop-color="#43d9ff"/>
+    </linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <style>
+      .t{font-family:'Segoe UI',Arial,sans-serif;fill:#e9ecff}
+      .muted{fill:#8d95b8}
+      .card{fill:#141a33;stroke:#2c3562;stroke-width:1.3}
+      .lbl{font-size:12.5px}
+    </style>
+  </defs>
+
+  <rect width="1100" height="620" fill="url(#bg)"/>
+  <circle cx="980" cy="100" r="160" fill="#7c5cff" opacity="0.06"/>
+
+  <text x="44" y="56" class="t" font-size="27" font-weight="700">From “nearby” to a real match</text>
+  <text x="44" y="82" class="t muted" font-size="14">the whole loop in one request pipeline</text>
+
+  <!-- timeline -->
+  <line x1="80" y1="140" x2="1020" y2="140" stroke="#2b3460" stroke-width="3"/>
+  <line x1="80" y1="140" x2="1020" y2="140" stroke="url(#flow)" stroke-width="3" stroke-dasharray="120 940">
+    <animate attributeName="stroke-dashoffset" values="1060;0" dur="6s" repeatCount="indefinite"/>
+  </line>
+
+  <!-- steps -->
+  <g>
+    <circle cx="150" cy="140" r="9" fill="#ff4d8d" filter="url(#glow)">
+      <animate attributeName="r" values="9;12;9" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <text x="150" y="118" class="t" font-size="12" text-anchor="middle">1 · location</text>
+
+    <circle cx="390" cy="140" r="9" fill="#c45cff"/>
+    <text x="390" y="118" class="t" font-size="12" text-anchor="middle">2 · discover</text>
+
+    <circle cx="630" cy="140" r="9" fill="#7c5cff"/>
+    <text x="630" y="118" class="t" font-size="12" text-anchor="middle">3 · swipe</text>
+
+    <circle cx="860" cy="140" r="9" fill="#43d9ff"/>
+    <text x="860" y="118" class="t" font-size="12" text-anchor="middle">4 · match</text>
+
+    <circle cx="1010" cy="140" r="9" fill="#2ee6a8"/>
+    <text x="1010" y="118" class="t" font-size="12" text-anchor="middle">5 · chat</text>
+  </g>
+
+  <!-- cards -->
+  <g>
+    <rect x="60" y="188" width="280" height="150" rx="16" class="card"/>
+    <text x="80" y="218" class="t" font-size="15" font-weight="600">POST /profiles/me/location</text>
+    <text x="80" y="244" class="t muted lbl">lat 55.7558 · lng 37.6173</text>
+    <text x="80" y="268" class="t muted lbl">haversine distance in SQL</text>
+    <text x="80" y="292" class="t muted lbl">privacy-aware visibility</text>
+    <text x="80" y="318" class="t" fill="#ff8ab5" font-size="12">radius tiers: 5 → 12.5 → 30 km…</text>
+
+    <rect x="370" y="188" width="280" height="150" rx="16" class="card"/>
+    <text x="390" y="218" class="t" font-size="15" font-weight="600">GET /discovery</text>
+    <text x="390" y="244" class="t muted lbl">age + gender filters</text>
+    <text x="390" y="268" class="t muted lbl">exclude blocked / swiped</text>
+    <text x="390" y="292" class="t muted lbl">ordered by distance</text>
+    <text x="390" y="318" class="t" fill="#c9a6ff" font-size="12">expand=true walks radius tiers</text>
+
+    <rect x="680" y="188" width="280" height="150" rx="16" class="card"/>
+    <text x="700" y="218" class="t" font-size="15" font-weight="600">POST /swipes</text>
+    <text x="700" y="244" class="t muted lbl">like · dislike · superlike</text>
+    <text x="700" y="268" class="t muted lbl">daily limits + rewind window</text>
+    <text x="700" y="292" class="t muted lbl">transaction: swipe + match</text>
+    <text x="700" y="318" class="t" fill="#8fe9ff" font-size="12">reciprocal like → match</text>
+  </g>
+
+  <!-- animated packet between cards -->
+  <g fill="#ffffff">
+    <circle r="4" opacity="0.9"><animateMotion dur="4s" repeatCount="indefinite" path="M340 263 L 370 263"/></circle>
+    <circle r="4" opacity="0.9"><animateMotion dur="4s" begin="1s" repeatCount="indefinite" path="M650 263 L 680 263"/></circle>
+  </g>
+
+  <!-- match panel -->
+  <g>
+    <rect x="60" y="378" width="440" height="170" rx="18" fill="#161d3a" stroke="#ff4d8d" stroke-width="1.6"/>
+    <text x="82" y="410" class="t" font-size="16" font-weight="700">💞 Match created</text>
+    <text x="82" y="438" class="t muted lbl">one transaction: swipe → match → conversation</text>
+    <text x="82" y="462" class="t muted lbl">outbox event match.created → Kafka / local bus</text>
+    <text x="82" y="486" class="t muted lbl">WebSocket match.new → both clients</text>
+    <text x="82" y="516" class="t" fill="#ff8ab5" font-size="12.5">unique (least,greatest) index keeps it idempotent</text>
+    <rect x="82" y="528" width="150" height="1" fill="#ff4d8d" opacity="0.4">
+      <animate attributeName="width" values="0;360" dur="2.4s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <g>
+    <rect x="530" y="378" width="430" height="170" rx="18" fill="#161d3a" stroke="#43d9ff" stroke-width="1.6"/>
+    <text x="552" y="410" class="t" font-size="16" font-weight="700">💬 Realtime message</text>
+    <text x="552" y="438" class="t muted lbl">POST /conversations/{id}/messages</text>
+    <text x="552" y="462" class="t muted lbl">stored in Postgres + Redis fan-out</text>
+    <text x="552" y="486" class="t muted lbl">message.new · typing · read receipts</text>
+    <text x="552" y="516" class="t" fill="#8fe9ff" font-size="12.5">notification.new also arrives over WS</text>
+    <rect x="552" y="528" width="150" height="1" fill="#43d9ff" opacity="0.4">
+      <animate attributeName="width" values="0;340" dur="2.8s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <!-- floating hearts -->
+  <g fill="#ff4d8d" opacity="0.7">
+    <text x="970" y="300" font-size="20">♥<animate attributeName="y" values="300;240;300" dur="4s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.2;0.9;0.2" dur="4s" repeatCount="indefinite"/></text>
+    <text x="1010" y="330" font-size="14">♥<animate attributeName="y" values="330;270;330" dur="5s" repeatCount="indefinite"/></text>
+  </g>
+
+  <text x="44" y="596" class="t muted" font-size="12">Start nearby, expand only when needed. Every state change is durable before it is announced.</text>
+</svg>

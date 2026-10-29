@@ -1,0 +1,12 @@
+bin
+data
+media
+uploads
+.git
+.github
+.idea
+.vscode
+coverage.out
+*.log
+.env
+docs/postman

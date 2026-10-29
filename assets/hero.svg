@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-label="LoveService backend">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b0b16"/>
+      <stop offset="0.55" stop-color="#1a0f2e"/>
+      <stop offset="1" stop-color="#0b0b16"/>
+    </linearGradient>
+    <linearGradient id="pink" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff4d8d"/>
+      <stop offset="1" stop-color="#c86dd7"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff7aa8"/>
+      <stop offset="1" stop-color="#7b61ff"/>
+    </linearGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="18"/></filter>
+    <filter id="shadow"><feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#ff4d8d" flood-opacity="0.25"/></filter>
+  </defs>
+
+  <rect width="1200" height="420" rx="28" fill="url(#bg)"/>
+  <circle cx="180" cy="90" r="90" fill="#ff4d8d" opacity="0.28" filter="url(#blur)">
+    <animate attributeName="opacity" values="0.18;0.35;0.18" dur="5s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="1050" cy="330" r="120" fill="#7b61ff" opacity="0.28" filter="url(#blur)">
+    <animate attributeName="opacity" values="0.3;0.15;0.3" dur="6s" repeatCount="indefinite"/>
+  </circle>
+
+  <g transform="translate(70 68)">
+    <text x="0" y="0" font-family="Arial, Helvetica, sans-serif" font-size="16" letter-spacing="6" fill="#ff8db7">DATING BACKEND · GO + POSTGRES + KAFKA</text>
+    <text x="0" y="74" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="700" fill="#ffffff">LoveService</text>
+    <text x="0" y="112" font-family="Arial, Helvetica, sans-serif" font-size="24" fill="#cfc9ff">Swipe. Match. Chat. Nearby discovery.</text>
+    <g font-family="Arial, Helvetica, sans-serif" font-size="15">
+      <rect x="0" y="150" width="150" height="36" rx="18" fill="#ffffff" opacity="0.08"/>
+      <text x="20" y="173" fill="#ffffff">JWT + refresh</text>
+      <rect x="162" y="150" width="120" height="36" rx="18" fill="#ffffff" opacity="0.08"/>
+      <text x="182" y="173" fill="#ffffff">WebSocket</text>
+      <rect x="294" y="150" width="150" height="36" rx="18" fill="#ffffff" opacity="0.08"/>
+      <text x="314" y="173" fill="#ffffff">MinIO media</text>
+      <rect x="456" y="150" width="130" height="36" rx="18" fill="#ffffff" opacity="0.08"/>
+      <text x="476" y="173" fill="#ffffff">Swagger</text>
+    </g>
+    <g transform="translate(0 228)">
+      <text x="0" y="0" font-family="monospace" font-size="14" fill="#8ef0c8">$ docker compose up -d --build</text>
+      <text x="0" y="24" font-family="monospace" font-size="14" fill="#8f9bb3">api   → http://localhost:8080</text>
+      <text x="0" y="48" font-family="monospace" font-size="14" fill="#8f9bb3">docs  → http://localhost:8080/docs</text>
+      <text x="0" y="72" font-family="monospace" font-size="14" fill="#8f9bb3">minio → http://localhost:9001</text>
+    </g>
+  </g>
+
+  <g transform="translate(790 55)" filter="url(#shadow)">
+    <rect x="0" y="0" width="250" height="330" rx="36" fill="#0d0d1a" stroke="#ff4d8d" stroke-opacity="0.55" stroke-width="2"/>
+    <rect x="14" y="14" width="222" height="302" rx="26" fill="#151527"/>
+    <rect x="96" y="22" width="58" height="8" rx="4" fill="#2b2b44"/>
+
+    <g>
+      <animateTransform attributeName="transform" type="rotate" values="-2;2;-2" dur="7s" repeatCount="indefinite"/>
+      <rect x="30" y="52" width="190" height="210" rx="20" fill="url(#card)"/>
+      <circle cx="125" cy="130" r="46" fill="#ffffff" opacity="0.18"/>
+      <text x="125" y="145" font-family="Arial" font-size="40" font-weight="700" text-anchor="middle" fill="#ffffff">A</text>
+      <text x="125" y="196" font-family="Arial" font-size="18" font-weight="700" text-anchor="middle" fill="#ffffff">Анна, 27</text>
+      <text x="125" y="219" font-family="Arial" font-size="12" text-anchor="middle" fill="#ffffff" opacity="0.8">2 км · Москва</text>
+      <text x="125" y="242" font-family="Arial" font-size="11" text-anchor="middle" fill="#ffffff" opacity="0.75">фотография · кофе · собаки</text>
+    </g>
+
+    <g transform="translate(56 282)">
+      <circle cx="0" cy="0" r="21" fill="#24243a"/>
+      <text x="0" y="7" text-anchor="middle" font-family="Arial" font-size="20" fill="#ff6b8a">✕</text>
+      <circle cx="70" cy="0" r="25" fill="#ff4d8d">
+        <animate attributeName="r" values="24;27;24" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      <text x="70" y="7" text-anchor="middle" font-family="Arial" font-size="20" fill="#ffffff">♥</text>
+      <circle cx="140" cy="0" r="21" fill="#24243a"/>
+      <text x="140" y="7" text-anchor="middle" font-family="Arial" font-size="17" fill="#ffd166">★</text>
+    </g>
+  </g>
+
+  <g fill="#ff4d8d">
+    <path d="M690 110 c-12 -18 -38 -10 -38 12 c0 16 20 28 38 42 c18 -14 38 -26 38 -42 c0 -22 -26 -30 -38 -12z" opacity="0.9">
+      <animateTransform attributeName="transform" type="translate" values="0 0; 6 -10; 0 0" dur="3.5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.35;0.95;0.35" dur="3.5s" repeatCount="indefinite"/>
+    </path>
+    <path d="M735 300 c-8 -12 -25 -7 -25 8 c0 10 13 18 25 27 c12 -9 25 -17 25 -27 c0 -15 -17 -20 -25 -8z" opacity="0.55" transform="scale(0.8) translate(200 20)">
+      <animateTransform attributeName="transform" type="translate" values="0 0; -8 -8; 0 0" dur="4.2s" repeatCount="indefinite"/>
+    </path>
+  </g>
+</svg>

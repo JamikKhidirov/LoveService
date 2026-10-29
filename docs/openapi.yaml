@@ -1,0 +1,1541 @@
+openapi: 3.1.0
+info:
+  title: LoveService API
+  version: 1.0.0
+  description: |
+    Dating-backend API: registration, profiles, media, nearby discovery,
+    swipes, matches, chat, notifications, moderation and **lawful-access
+    (technical admin)** endpoints.
+
+    ## Response envelope
+    Successful responses are wrapped as `{"data": ...}`.
+    Errors are `{"error": {"code": "...", "message": "...", "details": {...}}}`.
+
+    ## Authorization
+    Send `Authorization: Bearer <access_token>` for protected endpoints.
+    WebSocket clients pass the same token as `?token=<access_token>`.
+
+    ## ⚠️ Technical-admin / lawful-access endpoints
+    The `/api/v1/admin/*` group is restricted to `moderator` and `admin` roles.
+    The `admin` role is the **technical administrator** authorised to disclose
+    data to national-security / law-enforcement authorities. Such access is
+    only possible through a recorded **legal request** (case number, authority,
+    country and legal basis) and is always written to an append-only audit log.
+    Exports never contain passwords, password hashes, refresh tokens or
+    verification codes.
+  contact:
+    name: LoveService backend
+  license:
+    name: MIT
+servers:
+  - url: http://localhost:8080
+    description: Local Docker stack
+  - url: http://192.168.1.10:8080
+    description: Example LAN URL (use your host IP for a physical phone)
+tags:
+  - name: Health
+  - name: Auth
+  - name: Profile
+  - name: Media
+  - name: Discovery
+  - name: Swipes
+  - name: Matches
+  - name: Chat
+  - name: Notifications
+  - name: Safety
+  - name: Devices
+  - name: Privacy
+  - name: Realtime
+  - name: Admin
+    description: Moderation and platform administration (`moderator` or `admin`).
+  - name: TechnicalAdmin
+    description: |
+      **Lawful access only.** Technical-administrator endpoints for responding to
+      verified requests from law-enforcement / national-security authorities.
+      Requires role `admin`. Every call is audited with actor, IP, request id and
+      the declared legal basis.
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      security: []
+      responses:
+        '200': {description: Service is alive}
+  /ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe (checks Postgres)
+      security: []
+      responses:
+        '200': {description: Ready}
+        '503': {description: Not ready}
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, display_name, birth_date, gender]
+              properties:
+                email: {type: string, format: email, example: user@example.com}
+                password: {type: string, minLength: 8, example: 'StrongPass123!'}
+                display_name: {type: string, example: 'Анна'}
+                birth_date: {type: string, format: date, example: '1998-03-21'}
+                gender: {type: string, enum: [male, female, other]}
+                phone: {type: string, example: '+79990001122'}
+                preferred_genders:
+                  type: array
+                  items: {type: string, enum: [male, female, other]}
+      responses:
+        '201':
+          description: Created. In non-production the email code is returned as `dev_code`.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthResultEnvelope'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Validation'}
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in with email and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: {type: string, format: email}
+                password: {type: string}
+      responses:
+        '200':
+          description: Access and refresh tokens
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthResultEnvelope'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {description: Account is banned or deactivated}
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotate a refresh token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: {type: string}
+      responses:
+        '200':
+          description: New token pair
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthResultEnvelope'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Revoke a refresh token
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token: {type: string}
+      responses:
+        '200': {description: Logged out}
+  /api/v1/auth/verify-email:
+    post:
+      tags: [Auth]
+      summary: Verify the email address with the 6-digit code
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code]
+              properties:
+                email: {type: string, format: email}
+                code: {type: string, example: '123456'}
+      responses:
+        '200': {description: Verified}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/auth/resend-verification:
+    post:
+      tags: [Auth]
+      summary: Re-send the verification code
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: {type: string, format: email}
+      responses:
+        '200': {description: Sent (returns `dev_code` outside production)}
+  /api/v1/auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Request a password-reset code
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: {type: string, format: email}
+      responses:
+        '200': {description: Sent (returns `dev_code` outside production)}
+  /api/v1/auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset the password with a code
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code, new_password]
+              properties:
+                email: {type: string, format: email}
+                code: {type: string}
+                new_password: {type: string, minLength: 8}
+      responses:
+        '200': {description: Password reset}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user and profile
+      responses:
+        '200':
+          description: Current account
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user: {$ref: '#/components/schemas/User'}
+                      profile: {$ref: '#/components/schemas/Profile'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change password (returns a fresh token pair)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password: {type: string}
+                new_password: {type: string, minLength: 8}
+      responses:
+        '200': {description: Password changed}
+        '422': {$ref: '#/components/responses/Validation'}
+  /api/v1/profiles/me:
+    get:
+      tags: [Profile]
+      summary: Get my profile
+      responses:
+        '200':
+          description: Profile
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ProfileEnvelope'}
+    patch:
+      tags: [Profile]
+      summary: Update my profile
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ProfileUpdate'}
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ProfileEnvelope'}
+        '422': {$ref: '#/components/responses/Validation'}
+    delete:
+      tags: [Profile]
+      summary: Delete my account and media
+      responses:
+        '200': {description: Deleted}
+  /api/v1/profiles/me/location:
+    post:
+      tags: [Profile]
+      summary: Update my geolocation (mobile app sends lat/lng)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lat, lng]
+              properties:
+                lat: {type: number, minimum: -90, maximum: 90, example: 55.7558}
+                lng: {type: number, minimum: -180, maximum: 180, example: 37.6173}
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ProfileEnvelope'}
+        '422': {$ref: '#/components/responses/Validation'}
+  /api/v1/profiles/me/preferences:
+    get:
+      tags: [Profile]
+      summary: Get discovery preferences
+      responses:
+        '200':
+          description: Preferences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/Preferences'}
+    patch:
+      tags: [Profile]
+      summary: Update discovery preferences
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                min_age: {type: integer, minimum: 18, example: 18}
+                max_age: {type: integer, maximum: 120, example: 45}
+                max_distance_km: {type: integer, minimum: 1, maximum: 20000, example: 100}
+                preferred_genders:
+                  type: array
+                  items: {type: string, enum: [male, female, other]}
+                global_mode: {type: boolean}
+      responses:
+        '200':
+          description: Updated preferences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/Preferences'}
+        '422': {$ref: '#/components/responses/Validation'}
+  /api/v1/profiles/me/settings:
+    get:
+      tags: [Profile]
+      summary: Get account settings
+      responses:
+        '200':
+          description: Settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/Settings'}
+    patch:
+      tags: [Profile]
+      summary: Update account settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notifications_enabled: {type: boolean}
+                discoverable: {type: boolean}
+                show_distance: {type: boolean}
+                show_online: {type: boolean}
+                language: {type: string, enum: [ru, en]}
+      responses:
+        '200':
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/Settings'}
+        '422': {$ref: '#/components/responses/Validation'}
+  /api/v1/profiles/{userID}:
+    get:
+      tags: [Profile]
+      summary: Get another user's public profile
+      parameters:
+        - $ref: '#/components/parameters/UserID'
+      responses:
+        '200':
+          description: Profile
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ProfileEnvelope'}
+        '403': {description: Blocked or hidden}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/profiles/me/photos:
+    get:
+      tags: [Media]
+      summary: List my photos and videos
+      responses:
+        '200':
+          description: Media list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/Photo'}
+    post:
+      tags: [Media]
+      summary: Upload a photo or video
+      description: Multipart upload. Photos jpg/png/webp/gif (max 9), videos mp4/webm/mov/m4v (max 2).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+      responses:
+        '201':
+          description: Uploaded media
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/Photo'}
+        '422': {$ref: '#/components/responses/Validation'}
+  /api/v1/profiles/me/photos/{mediaID}:
+    delete:
+      tags: [Media]
+      summary: Delete one of my media items
+      parameters:
+        - $ref: '#/components/parameters/MediaID'
+      responses:
+        '204': {description: Deleted}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/profiles/me/photos/{mediaID}/primary:
+    patch:
+      tags: [Media]
+      summary: Set the primary photo
+      parameters:
+        - $ref: '#/components/parameters/MediaID'
+      responses:
+        '200':
+          description: Primary photo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/Photo'}
+  /api/v1/discovery:
+    get:
+      tags: [Discovery]
+      summary: Discover people nearby (auto-expanding radius)
+      description: |
+        Returns candidates ordered by distance. With `expand=true` (default) the
+        radius grows through tiers (5 → 12.5 → 30 km …) until enough people are
+        found or the 20 000 km limit is reached.
+      parameters:
+        - {name: lat, in: query, schema: {type: number}, description: Use the phone's current latitude}
+        - {name: lng, in: query, schema: {type: number}, description: Use the phone's current longitude}
+        - {name: radius_km, in: query, schema: {type: number, default: 50}}
+        - {name: min_age, in: query, schema: {type: integer, minimum: 18}}
+        - {name: max_age, in: query, schema: {type: integer, maximum: 120}}
+        - {name: gender, in: query, schema: {type: array, items: {type: string, enum: [male, female, other]}}}
+        - {name: genders, in: query, schema: {type: string}, description: Comma-separated list}
+        - {name: limit, in: query, schema: {type: integer, default: 20, maximum: 50}}
+        - {name: offset, in: query, schema: {type: integer, default: 0}}
+        - {name: expand, in: query, schema: {type: boolean, default: true}}
+      responses:
+        '200':
+          description: Discovery page
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DiscoveryEnvelope'}
+        '422': {$ref: '#/components/responses/Validation'}
+  /api/v1/discovery/nearby:
+    get:
+      tags: [Discovery]
+      summary: Alias of /discovery
+      parameters:
+        - {name: lat, in: query, schema: {type: number}}
+        - {name: lng, in: query, schema: {type: number}}
+        - {name: radius_km, in: query, schema: {type: number}}
+      responses:
+        '200':
+          description: Discovery page
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DiscoveryEnvelope'}
+  /api/v1/discovery/nearby/count:
+    get:
+      tags: [Discovery]
+      summary: Count candidates in a radius
+      parameters:
+        - {name: radius_km, in: query, schema: {type: number, default: 50}}
+      responses:
+        '200': {description: Count}
+  /api/v1/discovery/likes:
+    get:
+      tags: [Discovery]
+      summary: Incoming likes and superlikes
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, default: 50}}
+      responses:
+        '200':
+          description: Incoming likes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items: {$ref: '#/components/schemas/IncomingLike'}
+                      count: {type: integer}
+  /api/v1/discovery/likes/sent:
+    get:
+      tags: [Discovery]
+      summary: Likes I have sent
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, default: 50}}
+      responses:
+        '200': {description: Sent likes}
+  /api/v1/discovery/stats:
+    get:
+      tags: [Discovery]
+      summary: Badge counters (likes, matches, unread messages)
+      responses:
+        '200':
+          description: Stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/Stats'}
+  /api/v1/swipes:
+    post:
+      tags: [Swipes]
+      summary: Like, dislike or superlike a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_user_id, action]
+              properties:
+                target_user_id: {type: string, format: uuid}
+                action: {type: string, enum: [like, dislike, superlike]}
+      responses:
+        '200':
+          description: Swipe result (may contain a new match)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/SwipeResult'}
+        '409': {description: Already swiped}
+        '429': {$ref: '#/components/responses/TooManyRequests'}
+  /api/v1/swipes/rewind:
+    post:
+      tags: [Swipes]
+      summary: Rewind the last swipe (within the rewind window)
+      responses:
+        '200': {description: Rewound swipe}
+        '404': {description: Nothing to rewind}
+  /api/v1/swipes/limits:
+    get:
+      tags: [Swipes]
+      summary: Daily swipe limits
+      responses:
+        '200':
+          description: Limits
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/SwipeLimits'}
+  /api/v1/matches:
+    get:
+      tags: [Matches]
+      summary: List my matches
+      responses:
+        '200':
+          description: Matches
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items: {$ref: '#/components/schemas/Match'}
+                      count: {type: integer}
+  /api/v1/matches/{matchID}:
+    get:
+      tags: [Matches]
+      summary: Get a match with peer profile
+      parameters:
+        - $ref: '#/components/parameters/MatchID'
+      responses:
+        '200': {description: Match}
+        '404': {$ref: '#/components/responses/NotFound'}
+    delete:
+      tags: [Matches]
+      summary: Unmatch
+      parameters:
+        - $ref: '#/components/parameters/MatchID'
+      responses:
+        '200': {description: Unmatched}
+  /api/v1/conversations:
+    get:
+      tags: [Chat]
+      summary: List conversations with last message and unread count
+      responses:
+        '200':
+          description: Conversations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items: {$ref: '#/components/schemas/Conversation'}
+                      count: {type: integer}
+  /api/v1/conversations/{conversationID}:
+    get:
+      tags: [Chat]
+      summary: Get one conversation
+      parameters:
+        - $ref: '#/components/parameters/ConversationID'
+      responses:
+        '200': {description: Conversation}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/conversations/{conversationID}/messages:
+    get:
+      tags: [Chat]
+      summary: List messages (ascending)
+      parameters:
+        - $ref: '#/components/parameters/ConversationID'
+        - {name: before, in: query, schema: {type: string, format: date-time}}
+        - {name: limit, in: query, schema: {type: integer, default: 30, maximum: 100}}
+      responses:
+        '200':
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items: {$ref: '#/components/schemas/Message'}
+                      count: {type: integer}
+                      next_before: {type: string}
+    post:
+      tags: [Chat]
+      summary: Send a message to a conversation
+      parameters:
+        - $ref: '#/components/parameters/ConversationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body: {type: string}
+                media_url: {type: string}
+      responses:
+        '201':
+          description: Message
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/Message'}
+        '403': {description: Conversation closed}
+  /api/v1/messages:
+    post:
+      tags: [Chat]
+      summary: Send a message (conversation_id in body)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conversation_id, body]
+              properties:
+                conversation_id: {type: string, format: uuid}
+                body: {type: string}
+                media_url: {type: string}
+      responses:
+        '201': {description: Message}
+        '403': {description: Conversation closed}
+  /api/v1/conversations/{conversationID}/read:
+    post:
+      tags: [Chat]
+      summary: Mark all incoming messages as read
+      parameters:
+        - $ref: '#/components/parameters/ConversationID'
+      responses:
+        '200': {description: Read receipts sent}
+  /api/v1/conversations/{conversationID}/typing:
+    post:
+      tags: [Chat]
+      summary: Broadcast a typing indicator
+      parameters:
+        - $ref: '#/components/parameters/ConversationID'
+      responses:
+        '204': {description: Sent}
+  /api/v1/notifications:
+    get:
+      tags: [Notifications]
+      summary: List notifications
+      parameters:
+        - {name: before, in: query, schema: {type: string, format: date-time}}
+        - {name: limit, in: query, schema: {type: integer, default: 30}}
+      responses:
+        '200':
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items: {$ref: '#/components/schemas/Notification'}
+                      count: {type: integer}
+                      unread: {type: integer}
+  /api/v1/notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Unread notification count
+      responses:
+        '200': {description: Count}
+  /api/v1/notifications/{notificationID}/read:
+    post:
+      tags: [Notifications]
+      summary: Mark one notification read
+      parameters:
+        - {name: notificationID, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Marked}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/notifications/read-all:
+    post:
+      tags: [Notifications]
+      summary: Mark all notifications read
+      responses:
+        '200': {description: Marked}
+  /api/v1/blocks:
+    get:
+      tags: [Safety]
+      summary: List blocked users
+      responses:
+        '200': {description: Blocked users}
+    post:
+      tags: [Safety]
+      summary: Block a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id: {type: string, format: uuid}
+      responses:
+        '201': {description: Blocked}
+  /api/v1/blocks/{userID}:
+    delete:
+      tags: [Safety]
+      summary: Unblock a user
+      parameters:
+        - $ref: '#/components/parameters/UserID'
+      responses:
+        '204': {description: Unblocked}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/reports:
+    post:
+      tags: [Safety]
+      summary: Report a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_user_id, reason]
+              properties:
+                target_user_id: {type: string, format: uuid}
+                reason: {type: string, enum: [spam, fake_profile, inappropriate_photos, harassment, underage, other]}
+                details: {type: string, maxLength: 2000}
+      responses:
+        '201': {description: Report created}
+        '422': {$ref: '#/components/responses/Validation'}
+  /api/v1/devices:
+    post:
+      tags: [Devices]
+      summary: Register a push-notification device token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [platform, token]
+              properties:
+                platform: {type: string, enum: [ios, android, web]}
+                token: {type: string}
+      responses:
+        '201': {description: Saved}
+    delete:
+      tags: [Devices]
+      summary: Remove a device token
+      parameters:
+        - {name: token, in: query, required: true, schema: {type: string}}
+      responses:
+        '204': {description: Removed}
+  /api/v1/account/export:
+    get:
+      tags: [Privacy]
+      summary: Download my own personal data
+      responses:
+        '200': {description: Personal data export}
+  /api/v1/ws:
+    get:
+      tags: [Realtime]
+      summary: WebSocket gateway
+      description: |
+        Connect with `ws://<host>/api/v1/ws?token=<access_token>` (native mobile
+        clients may use the token query parameter; browsers may use the
+        `Authorization` header only from non-browser clients).
+        See `docs/WEBSOCKET.md` for events.
+      parameters:
+        - {name: token, in: query, required: true, schema: {type: string}}
+      responses:
+        '101': {description: Switching protocols}
+        '401': {description: Missing or invalid token}
+  # -------------------------------------------------------------------------
+  # Admin (moderator + admin)
+  # -------------------------------------------------------------------------
+  /api/v1/admin/stats:
+    get:
+      tags: [Admin]
+      summary: Platform statistics (moderator/admin)
+      responses:
+        '200':
+          description: Stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/AdminStats'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/admin/users:
+    get:
+      tags: [Admin]
+      summary: Search users (moderator/admin)
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: status, in: query, schema: {type: string, enum: [active, deactivated, banned, deleted]}}
+        - {name: limit, in: query, schema: {type: integer, default: 50, maximum: 200}}
+        - {name: offset, in: query, schema: {type: integer, default: 0}}
+      responses:
+        '200':
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items: {$ref: '#/components/schemas/AdminUserSummary'}
+                      count: {type: integer}
+                      total: {type: integer}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/admin/users/{userID}:
+    get:
+      tags: [Admin]
+      summary: View a user's account and activity (audited)
+      description: |
+        Moderators and administrators can inspect an account. The `reason`
+        parameter is stored in the audit log.
+      parameters:
+        - $ref: '#/components/parameters/UserID'
+        - {name: reason, in: query, schema: {type: string}, description: Why the data is being accessed}
+      responses:
+        '200': {description: User detail}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/admin/users/{userID}/status:
+    patch:
+      tags: [Admin]
+      summary: Ban / deactivate / reactivate a user (admin only, audited)
+      parameters:
+        - $ref: '#/components/parameters/UserID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, reason]
+              properties:
+                status: {type: string, enum: [active, deactivated, banned, deleted]}
+                reason: {type: string}
+      responses:
+        '200': {description: Updated}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/admin/users/{userID}/role:
+    patch:
+      tags: [Admin]
+      summary: Change a user's role (admin only, audited)
+      parameters:
+        - $ref: '#/components/parameters/UserID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role, reason]
+              properties:
+                role: {type: string, enum: [user, moderator, admin]}
+                reason: {type: string}
+      responses:
+        '200': {description: Updated}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/admin/users/{userID}/verify:
+    patch:
+      tags: [Admin]
+      summary: Toggle the verified badge (admin only, audited)
+      parameters:
+        - $ref: '#/components/parameters/UserID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verified]
+              properties:
+                verified: {type: boolean}
+                reason: {type: string}
+      responses:
+        '200': {description: Updated}
+  /api/v1/admin/reports:
+    get:
+      tags: [Admin]
+      summary: List abuse reports (moderator/admin)
+      parameters:
+        - {name: status, in: query, schema: {type: string, enum: [open, reviewing, resolved, dismissed]}}
+        - {name: limit, in: query, schema: {type: integer, default: 50}}
+        - {name: offset, in: query, schema: {type: integer, default: 0}}
+      responses:
+        '200': {description: Reports}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/admin/reports/{reportID}:
+    patch:
+      tags: [Admin]
+      summary: Update report status (moderator/admin, audited)
+      parameters:
+        - {name: reportID, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: {type: string, enum: [open, reviewing, resolved, dismissed]}
+                reason: {type: string}
+      responses:
+        '200': {description: Updated}
+  /api/v1/admin/photos/{photoID}:
+    delete:
+      tags: [Admin]
+      summary: Remove a photo (admin only, audited)
+      parameters:
+        - {name: photoID, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: reason, in: query, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Deleted}
+        '422': {$ref: '#/components/responses/Validation'}
+  /api/v1/admin/notifications/broadcast:
+    post:
+      tags: [Admin]
+      summary: Send an in-app notification to selected users (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_ids, title, body]
+              properties:
+                user_ids:
+                  type: array
+                  items: {type: string, format: uuid}
+                type: {type: string, default: system}
+                title: {type: string}
+                body: {type: string}
+                reason: {type: string}
+      responses:
+        '201': {description: Created notifications}
+  /api/v1/admin/maintenance/purge:
+    post:
+      tags: [Admin]
+      summary: Purge expired tokens, codes and outbox rows (admin only)
+      parameters:
+        - {name: reason, in: query, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Purge summary}
+  /api/v1/admin/audit-logs:
+    get:
+      tags: [Admin]
+      summary: Read the append-only admin audit log (admin only)
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, default: 100, maximum: 500}}
+        - {name: offset, in: query, schema: {type: integer, default: 0}}
+      responses:
+        '200': {description: Audit entries}
+  # -------------------------------------------------------------------------
+  # Technical admin / lawful access
+  # -------------------------------------------------------------------------
+  /api/v1/admin/legal-requests:
+    post:
+      tags: [TechnicalAdmin]
+      summary: Create a lawful-access request (technical admin)
+      description: |
+        **Lawful access only.** Register an incoming request from a competent
+        authority before any data is disclosed. When
+        `ADMIN_REQUIRE_SECOND_APPROVAL=true` the request starts as `pending` and
+        must be approved by a different administrator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [case_number, authority, country, legal_basis, target_user_id]
+              properties:
+                case_number: {type: string, example: 'CASE-2026-000123'}
+                authority: {type: string, example: 'National Police / Cybercrime Unit'}
+                country: {type: string, example: 'RU'}
+                legal_basis: {type: string, example: 'Court order #1234 dated 2026-01-10'}
+                target_user_id: {type: string, format: uuid}
+                scopes:
+                  type: array
+                  items:
+                    type: string
+                    enum: [account, profile, media, matches, messages, swipes, notifications, reports]
+                reason: {type: string}
+      responses:
+        '201':
+          description: Created request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/LegalRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/Validation'}
+    get:
+      tags: [TechnicalAdmin]
+      summary: List lawful-access requests (technical admin, audited)
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, default: 50}}
+        - {name: offset, in: query, schema: {type: integer, default: 0}}
+      responses:
+        '200': {description: Requests}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/admin/legal-requests/{requestID}:
+    get:
+      tags: [TechnicalAdmin]
+      summary: Read one lawful-access request (technical admin, audited)
+      parameters:
+        - {name: requestID, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Request}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/admin/legal-requests/{requestID}/approve:
+    post:
+      tags: [TechnicalAdmin]
+      summary: Approve a lawful-access request (second administrator)
+      description: |
+        A request cannot be approved by its creator when second approval is
+        enabled. The approval is audited.
+      parameters:
+        - {name: requestID, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: {type: string}
+      responses:
+        '200': {description: Approved}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/admin/legal-requests/{requestID}/export:
+    post:
+      tags: [TechnicalAdmin]
+      summary: Export the approved disclosure package (technical admin, audited)
+      description: |
+        Returns a JSON package whose SHA-256 is stored on the request and in the
+        audit log. Passwords, password hashes, refresh tokens and verification
+        codes are excluded by design.
+      parameters:
+        - {name: requestID, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: {type: string}
+      responses:
+        '200':
+          description: Export package
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/LegalExport'}
+        '403': {description: Request not approved, or insufficient role}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token from /api/v1/auth/login or /api/v1/auth/register.
+  parameters:
+    UserID:
+      name: userID
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    MatchID:
+      name: matchID
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    ConversationID:
+      name: conversationID
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    MediaID:
+      name: mediaID
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+  responses:
+    Unauthorized:
+      description: Missing or invalid access token
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Forbidden:
+      description: Insufficient role or blocked interaction
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Conflict:
+      description: Conflict with existing data
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Validation:
+      description: Validation error
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    TooManyRequests:
+      description: Rate or daily limit exceeded
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: {type: string}
+            message: {type: string}
+            details:
+              type: object
+              additionalProperties: true
+    User:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        email: {type: string}
+        phone: {type: string}
+        role: {type: string, enum: [user, moderator, admin]}
+        status: {type: string, enum: [active, deactivated, banned, deleted]}
+        email_verified_at: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    Profile:
+      type: object
+      properties:
+        user_id: {type: string, format: uuid}
+        display_name: {type: string}
+        gender: {type: string, enum: [male, female, other]}
+        age: {type: integer}
+        bio: {type: string}
+        city: {type: string}
+        country: {type: string}
+        lat: {type: number}
+        lng: {type: number}
+        distance_km: {type: number}
+        height_cm: {type: integer}
+        job: {type: string}
+        education: {type: string}
+        interests:
+          type: array
+          items: {type: string}
+        looking_for:
+          type: array
+          items: {type: string}
+        is_verified: {type: boolean}
+        online: {type: boolean}
+        last_seen_at: {type: string, format: date-time}
+        photos:
+          type: array
+          items: {$ref: '#/components/schemas/Photo'}
+    Photo:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        user_id: {type: string, format: uuid}
+        url: {type: string}
+        media_type: {type: string, enum: [photo, video]}
+        position: {type: integer}
+        is_primary: {type: boolean}
+        moderation_status: {type: string, enum: [pending, approved, rejected]}
+        created_at: {type: string, format: date-time}
+    Preferences:
+      type: object
+      properties:
+        user_id: {type: string, format: uuid}
+        min_age: {type: integer}
+        max_age: {type: integer}
+        max_distance_km: {type: integer}
+        preferred_genders:
+          type: array
+          items: {type: string}
+        global_mode: {type: boolean}
+    Settings:
+      type: object
+      properties:
+        user_id: {type: string, format: uuid}
+        notifications_enabled: {type: boolean}
+        discoverable: {type: boolean}
+        show_distance: {type: boolean}
+        show_online: {type: boolean}
+        language: {type: string}
+    ProfileUpdate:
+      type: object
+      properties:
+        display_name: {type: string}
+        birth_date: {type: string, format: date}
+        gender: {type: string, enum: [male, female, other]}
+        bio: {type: string, maxLength: 500}
+        city: {type: string}
+        country: {type: string}
+        height_cm: {type: integer, minimum: 100, maximum: 250}
+        job: {type: string}
+        education: {type: string}
+        interests:
+          type: array
+          items: {type: string}
+        looking_for:
+          type: array
+          items: {type: string, enum: [male, female, other]}
+        phone: {type: string}
+    AuthResult:
+      type: object
+      properties:
+        user: {$ref: '#/components/schemas/User'}
+        profile: {$ref: '#/components/schemas/Profile'}
+        tokens: {$ref: '#/components/schemas/TokenPair'}
+        dev_code: {type: string, description: Only outside production}
+    AuthResultEnvelope:
+      type: object
+      properties:
+        data: {$ref: '#/components/schemas/AuthResult'}
+    TokenPair:
+      type: object
+      properties:
+        access_token: {type: string}
+        refresh_token: {type: string}
+        token_type: {type: string, example: Bearer}
+        expires_in: {type: integer}
+        access_expires_at: {type: string, format: date-time}
+        refresh_expires_at: {type: string, format: date-time}
+    ProfileEnvelope:
+      type: object
+      properties:
+        data: {$ref: '#/components/schemas/Profile'}
+    DiscoveryEnvelope:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            profiles:
+              type: array
+              items: {$ref: '#/components/schemas/Profile'}
+            radius_km: {type: number}
+            expanded_to_radius_km: {type: number}
+            next_offset: {type: integer}
+            has_more: {type: boolean}
+            total_candidates: {type: integer}
+    IncomingLike:
+      type: object
+      properties:
+        profile: {$ref: '#/components/schemas/Profile'}
+        action: {type: string, enum: [like, superlike]}
+        created_at: {type: string, format: date-time}
+        matched: {type: boolean}
+    Stats:
+      type: object
+      properties:
+        incoming_likes: {type: integer}
+        matches: {type: integer}
+        unread_messages: {type: integer}
+        unread_notifications: {type: integer}
+    SwipeResult:
+      type: object
+      properties:
+        matched: {type: boolean}
+        match: {$ref: '#/components/schemas/Match'}
+        conversation_id: {type: string, format: uuid}
+        peer: {$ref: '#/components/schemas/Profile'}
+        action: {type: string}
+        likes_remaining: {type: integer}
+        superlikes_remaining: {type: integer}
+    SwipeLimits:
+      type: object
+      properties:
+        likes: {$ref: '#/components/schemas/DailyLimit'}
+        superlikes: {$ref: '#/components/schemas/DailyLimit'}
+        rewind_window_seconds: {type: integer}
+    DailyLimit:
+      type: object
+      properties:
+        limit: {type: integer}
+        used: {type: integer}
+        remaining: {type: integer}
+        resets_at: {type: string, format: date-time}
+    Match:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        created_at: {type: string, format: date-time}
+        peer: {$ref: '#/components/schemas/Profile'}
+        conversation_id: {type: string, format: uuid}
+    Conversation:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        match_id: {type: string, format: uuid}
+        created_at: {type: string, format: date-time}
+        last_message_at: {type: string, format: date-time}
+        peer: {$ref: '#/components/schemas/Profile'}
+        last_message: {$ref: '#/components/schemas/Message'}
+        unread_count: {type: integer}
+    Message:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        conversation_id: {type: string, format: uuid}
+        sender_id: {type: string, format: uuid}
+        body: {type: string}
+        type: {type: string, enum: [text, image, video]}
+        media_url: {type: string}
+        read_at: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+    Notification:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        type: {type: string}
+        title: {type: string}
+        body: {type: string}
+        data:
+          type: object
+          additionalProperties: true
+        read_at: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+    AdminStats:
+      type: object
+      properties:
+        users: {type: integer}
+        active_users: {type: integer}
+        new_users_24h: {type: integer}
+        matches: {type: integer}
+        messages: {type: integer}
+        swipes: {type: integer}
+        open_reports: {type: integer}
+        notifications: {type: integer}
+        legal_requests: {type: integer}
+    AdminUserSummary:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        email: {type: string}
+        phone: {type: string}
+        role: {type: string}
+        status: {type: string}
+        email_verified: {type: boolean}
+        display_name: {type: string}
+        birth_date: {type: string, format: date-time}
+        gender: {type: string}
+        city: {type: string}
+        primary_photo: {type: string}
+        photos: {type: integer}
+        matches: {type: integer}
+        messages: {type: integer}
+        last_seen_at: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+    AdminUserDetail:
+      type: object
+      properties:
+        user: {$ref: '#/components/schemas/User'}
+        profile: {$ref: '#/components/schemas/Profile'}
+        preferences: {$ref: '#/components/schemas/Preferences'}
+        settings: {$ref: '#/components/schemas/Settings'}
+        counts:
+          type: object
+          additionalProperties: {type: integer}
+    AuditLog:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        admin_id: {type: string, format: uuid}
+        action: {type: string}
+        target_type: {type: string}
+        target_id: {type: string}
+        reason: {type: string}
+        legal_basis: {type: string}
+        request_id: {type: string}
+        ip: {type: string}
+        user_agent: {type: string}
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at: {type: string, format: date-time}
+    LegalRequest:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        created_by: {type: string, format: uuid}
+        approved_by: {type: string, format: uuid}
+        case_number: {type: string}
+        authority: {type: string}
+        country: {type: string}
+        legal_basis: {type: string}
+        target_user_id: {type: string, format: uuid}
+        scopes:
+          type: array
+          items: {type: string}
+        status: {type: string, enum: [pending, approved, exported, rejected]}
+        export_sha256: {type: string}
+        created_at: {type: string, format: date-time}
+        approved_at: {type: string, format: date-time}
+        completed_at: {type: string, format: date-time}
+    LegalExport:
+      type: object
+      properties:
+        request: {$ref: '#/components/schemas/LegalRequest'}
+        data:
+          type: object
+          additionalProperties: true
+        exported_at: {type: string, format: date-time}
+        sha256: {type: string}

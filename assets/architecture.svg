@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" role="img" aria-labelledby="title desc">
+  <title id="title">LoveService architecture</title>
+  <desc id="desc">Animated modular-monolith architecture: mobile and admin clients call the Go HTTP/WebSocket API, which talks to Postgres, Redis, MinIO and Kafka.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1020"/>
+      <stop offset="0.55" stop-color="#11162b"/>
+      <stop offset="1" stop-color="#1a1030"/>
+    </linearGradient>
+    <linearGradient id="pink" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff4d8d"/>
+      <stop offset="1" stop-color="#ff8a5b"/>
+    </linearGradient>
+    <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c5cff"/>
+      <stop offset="1" stop-color="#43d9ff"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2ee6a8"/>
+      <stop offset="1" stop-color="#19b5fe"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <style>
+      .t { font-family: 'Segoe UI', Arial, sans-serif; fill: #e9ecff; }
+      .muted { fill: #8d95b8; }
+      .chip { fill: #1c2444; stroke: #303a68; stroke-width: 1.2; }
+      .box { fill: #141a33; stroke: #2c3562; stroke-width: 1.4; }
+      .wire { fill: none; stroke: #3a4778; stroke-width: 2; stroke-dasharray: 7 9; }
+      .lbl { font-size: 13px; }
+      .h { font-size: 15px; font-weight: 600; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="660" fill="url(#bg)"/>
+  <circle cx="1080" cy="80" r="180" fill="#ff4d8d" opacity="0.05"/>
+  <circle cx="120" cy="600" r="200" fill="#43d9ff" opacity="0.05"/>
+
+  <text x="48" y="58" class="t" font-size="28" font-weight="700">LoveService — architecture</text>
+  <text x="48" y="84" class="t muted" font-size="14">modular monolith · Go · outbox events · audited admin access</text>
+
+  <!-- clients -->
+  <g>
+    <rect x="48" y="128" width="200" height="66" rx="14" class="box"/>
+    <text x="68" y="156" class="t h">📱 Mobile app</text>
+    <text x="68" y="178" class="t muted lbl">geolocation · swipes · chat</text>
+
+    <rect x="48" y="214" width="200" height="66" rx="14" class="box"/>
+    <text x="68" y="242" class="t h">🛠 Admin console</text>
+    <text x="68" y="264" class="t muted lbl">moderation · lawful access</text>
+
+    <rect x="48" y="300" width="200" height="66" rx="14" class="box"/>
+    <text x="68" y="328" class="t h">🌐 Swagger / Postman</text>
+    <text x="68" y="350" class="t muted lbl">openapi.yaml · collections</text>
+  </g>
+
+  <!-- wires clients -> api -->
+  <path id="wire1" class="wire" d="M248 161 C 330 161, 350 250, 430 250"/>
+  <path id="wire2" class="wire" d="M248 247 C 330 247, 350 255, 430 255"/>
+  <path id="wire3" class="wire" d="M248 333 C 330 333, 350 270, 430 270"/>
+
+  <!-- API -->
+  <g filter="url(#glow)">
+    <rect x="430" y="196" width="268" height="128" rx="20" fill="#141a33" stroke="url(#pink)" stroke-width="2.5"/>
+  </g>
+  <text x="564" y="232" class="t" font-size="19" font-weight="700" text-anchor="middle">Go API</text>
+  <text x="564" y="256" class="t muted" font-size="12.5" text-anchor="middle">chi router · JWT · rate limit</text>
+  <text x="564" y="276" class="t muted" font-size="12.5" text-anchor="middle">REST /api/v1 · WebSocket /ws</text>
+  <text x="564" y="300" class="t" fill="#ff8ab5" font-size="12.5" text-anchor="middle">service layer → store / cache / storage</text>
+  <circle cx="700" cy="216" r="4" fill="#2ee6a8">
+    <animate attributeName="opacity" values="1;0.15;1" dur="1.8s" repeatCount="indefinite"/>
+  </circle>
+  <text x="712" y="220" class="t muted" font-size="11">live</text>
+
+  <!-- domain services chips -->
+  <g>
+    <text x="430" y="372" class="t muted" font-size="12" letter-spacing="1">DOMAIN SERVICES</text>
+    <g class="chip">
+      <rect x="430" y="388" width="86" height="34" rx="9"/><text x="473" y="410" class="t lbl" text-anchor="middle">auth</text>
+      <rect x="526" y="388" width="86" height="34" rx="9"/><text x="569" y="410" class="t lbl" text-anchor="middle">profile</text>
+      <rect x="622" y="388" width="96" height="34" rx="9"/><text x="670" y="410" class="t lbl" text-anchor="middle">discovery</text>
+      <rect x="430" y="432" width="86" height="34" rx="9"/><text x="473" y="454" class="t lbl" text-anchor="middle">swipe</text>
+      <rect x="526" y="432" width="86" height="34" rx="9"/><text x="569" y="454" class="t lbl" text-anchor="middle">chat</text>
+      <rect x="622" y="432" width="96" height="34" rx="9"/><text x="670" y="454" class="t lbl" text-anchor="middle">admin</text>
+    </g>
+  </g>
+
+  <!-- wires api -> infra -->
+  <path id="wireDB" class="wire" d="M698 232 C 790 232, 820 180, 900 180"/>
+  <path id="wireRedis" class="wire" d="M698 252 C 790 252, 820 320, 900 320"/>
+  <path id="wireS3" class="wire" d="M698 280 C 790 280, 820 450, 900 450"/>
+  <path id="wireKafka" class="wire" d="M698 300 C 800 300, 830 560, 900 560"/>
+
+  <!-- infra -->
+  <g>
+    <rect x="900" y="142" width="240" height="76" rx="14" class="box"/>
+    <text x="920" y="170" class="t h">🐘 PostgreSQL 16</text>
+    <text x="920" y="193" class="t muted lbl">users · matches · outbox · audit</text>
+
+    <rect x="900" y="282" width="240" height="76" rx="14" class="box"/>
+    <text x="920" y="310" class="t h">⚡ Redis 7</text>
+    <text x="920" y="333" class="t muted lbl">presence · limits · ws fan-out</text>
+
+    <rect x="900" y="412" width="240" height="76" rx="14" class="box"/>
+    <text x="920" y="440" class="t h">🪣 MinIO / S3</text>
+    <text x="920" y="463" class="t muted lbl">photos · videos · public URLs</text>
+
+    <rect x="900" y="522" width="240" height="76" rx="14" class="box"/>
+    <text x="920" y="550" class="t h">📨 Kafka</text>
+    <text x="920" y="573" class="t muted lbl">love.events · notifications</text>
+  </g>
+
+  <!-- moving packets -->
+  <g fill="#ff4d8d">
+    <circle r="5"><animateMotion dur="2.6s" repeatCount="indefinite"><mpath href="#wire1"/></animateMotion></circle>
+    <circle r="5"><animateMotion dur="3.1s" repeatCount="indefinite"><mpath href="#wire2"/></animateMotion></circle>
+    <circle r="5"><animateMotion dur="3.6s" repeatCount="indefinite"><mpath href="#wire3"/></animateMotion></circle>
+  </g>
+  <g fill="#43d9ff">
+    <circle r="5"><animateMotion dur="2.8s" repeatCount="indefinite"><mpath href="#wireDB"/></animateMotion></circle>
+    <circle r="5"><animateMotion dur="3.4s" repeatCount="indefinite"><mpath href="#wireRedis"/></animateMotion></circle>
+    <circle r="5"><animateMotion dur="4.0s" repeatCount="indefinite"><mpath href="#wireS3"/></animateMotion></circle>
+    <circle r="5"><animateMotion dur="4.6s" repeatCount="indefinite"><mpath href="#wireKafka"/></animateMotion></circle>
+  </g>
+
+  <!-- outbox loop -->
+  <path d="M1020 218 C 1120 250, 1120 470, 1020 522" fill="none" stroke="#2ee6a8" stroke-width="1.6" stroke-dasharray="5 8" opacity="0.7"/>
+  <text x="1132" y="372" class="t" fill="#2ee6a8" font-size="11" transform="rotate(90 1132 372)">transactional outbox</text>
+  <circle r="4" fill="#2ee6a8"><animateMotion dur="5s" repeatCount="indefinite" path="M1020 218 C 1120 250, 1120 470, 1020 522"/></circle>
+
+  <text x="48" y="632" class="t muted" font-size="12">Every admin / lawful-access call is written to the append-only audit log. Exports exclude passwords, tokens and codes.</text>
+</svg>
