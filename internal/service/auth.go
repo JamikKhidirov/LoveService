@@ -3,8 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
-	"html"
 	"log/slog"
 	"time"
 
@@ -314,6 +312,9 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, curr
 	if err := s.store.UpdatePassword(ctx, userID, hash); err != nil {
 		return nil, err
 	}
+	// The password change bumped token_version in the database, so the access
+	// token for this response must be minted with the new version.
+	user.TokenVersion++
 	if err := s.store.RevokeUserRefreshTokens(ctx, userID); err != nil {
 		return nil, err
 	}
@@ -322,6 +323,12 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, curr
 		return nil, err
 	}
 	return &pair, nil
+}
+
+// LogoutAll revokes every refresh token of the user and invalidates all access
+// tokens by bumping the account token version.
+func (s *AuthService) LogoutAll(ctx context.Context, userID uuid.UUID) error {
+	return s.store.LogoutAll(ctx, userID)
 }
 
 func (s *AuthService) issueTokens(ctx context.Context, user *domain.User, meta RequestMeta) (TokenPair, error) {
@@ -363,24 +370,15 @@ func (s *AuthService) sendCode(ctx context.Context, email, purpose string) (stri
 	if err := s.store.CreateEmailCode(ctx, email, purpose, security.HashCode(code), expires); err != nil {
 		return "", err
 	}
-	subject := "LoveService: подтверждение почты"
-	title := "Подтвердите почту"
+	message := mailer.VerificationEmail(code)
 	if purpose == "reset_password" {
-		subject = "LoveService: восстановление пароля"
-		title = "Восстановление пароля"
+		message = mailer.ResetPasswordEmail(code)
 	}
-	body := fmt.Sprintf(`<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:24px;border:1px solid #eee;border-radius:16px">
-<h2 style="color:#e91e63">%s</h2>
-<p>Ваш код:</p>
-<p style="font-size:32px;letter-spacing:8px;font-weight:bold;background:#fff0f5;padding:16px;border-radius:12px;text-align:center">%s</p>
-<p>Код действует 15 минут. Если это были не вы, просто проигнорируйте письмо.</p>
-<p style="color:#888;font-size:12px">LoveService — знакомства рядом</p></div>`,
-		html.EscapeString(title), html.EscapeString(code))
 	go func() {
-		sendCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		sendCtx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
-		if err := s.mailer.Send(sendCtx, email, subject, body); err != nil {
-			s.log.Warn("send email failed", "to", email, "error", err)
+		if err := s.mailer.SendMessage(sendCtx, email, message); err != nil {
+			s.log.Warn("send email failed", "to", email, "subject", message.Subject, "error", err)
 		}
 	}()
 	return code, nil

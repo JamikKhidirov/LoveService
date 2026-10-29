@@ -17,6 +17,7 @@ coverage.html
 data/
 media/
 uploads/
+mail-outbox/
 
 # IDE
 .idea/

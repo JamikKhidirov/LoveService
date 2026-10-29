@@ -37,7 +37,7 @@ func (a *API) mountPublicAuthRoutes(r chi.Router) {
 
 func (a *API) mountUserRoutes(r chi.Router, d Deps) {
 	r.Group(func(r chi.Router) {
-		r.Use(requireAuth(d.Tokens))
+		r.Use(requireAuth(d.Tokens, d.Store))
 
 		a.mountAccountRoutes(r)
 		a.mountProfileRoutes(r)
@@ -58,6 +58,8 @@ func (a *API) mountUserRoutes(r chi.Router, d Deps) {
 func (a *API) mountAccountRoutes(r chi.Router) {
 	r.Get("/auth/me", a.me)
 	r.Post("/auth/change-password", a.changePassword)
+	r.Post("/auth/logout-all", a.logoutAll)
+	r.Get("/devices", a.listDevices)
 	r.Post("/devices", a.saveDevice)
 	r.Delete("/devices", a.deleteDevice)
 }

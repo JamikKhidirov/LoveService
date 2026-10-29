@@ -35,6 +35,9 @@ type Claims struct {
 	Email  string `json:"email"`
 	Role   string `json:"role"`
 	Type   string `json:"typ"`
+	// Version mirrors users.token_version. Bumping it invalidates all access
+	// tokens issued before the bump (logout-all, password change, forced ban).
+	Version int `json:"ver"`
 	jwt.RegisteredClaims
 }
 
@@ -61,10 +64,11 @@ func (m *TokenManager) IssueAccess(user *domain.User) (string, time.Time, error)
 	now := time.Now().UTC()
 	expires := now.Add(m.accessTTL)
 	claims := Claims{
-		UserID: user.ID.String(),
-		Email:  user.Email,
-		Role:   user.Role,
-		Type:   "access",
+		UserID:  user.ID.String(),
+		Email:   user.Email,
+		Role:    user.Role,
+		Type:    "access",
+		Version: user.TokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    m.issuer,
 			Subject:   user.ID.String(),

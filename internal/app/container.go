@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/loveservice/loveservice/internal/cache"
@@ -56,7 +57,16 @@ func NewContainer(ctx context.Context, cfg *config.Config, log *slog.Logger, ver
 	}
 
 	tokens := security.NewTokenManager(cfg.JWTSecret, cfg.AccessTTL, cfg.RefreshTTL)
-	mail := mailer.New(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPassword, cfg.SMTPFrom, log)
+	mail := mailer.NewWithConfig(mailer.Config{
+		Host:      cfg.SMTPHost,
+		Port:      cfg.SMTPPort,
+		User:      cfg.SMTPUser,
+		Password:  cfg.SMTPPassword,
+		From:      cfg.SMTPFrom,
+		TLSMode:   cfg.SMTPTLS,
+		Timeout:   cfg.SMTPTimeout,
+		OutboxDir: cfg.MailOutbox,
+	}, log)
 	hub := ws.NewHub(c, log)
 
 	authSvc := service.NewAuthService(st, tokens, mail, cfg.Env, log)
@@ -125,6 +135,7 @@ func buildStorage(ctx context.Context, cfg *config.Config, log *slog.Logger) (st
 // disabled or unreachable, so local development never blocks on infrastructure.
 func buildEventBus(cfg *config.Config, notificationSvc *service.NotificationService, log *slog.Logger) (events.Bus, *events.Consumer) {
 	if cfg.KafkaEnabled && kafkaReachable(cfg.KafkaBrokers) {
+		ensureKafkaTopic(cfg.KafkaBrokers, cfg.KafkaTopic, log)
 		bus := events.NewKafkaBus(cfg.KafkaBrokers, cfg.KafkaTopic, log)
 		consumer := events.NewConsumer(cfg.KafkaBrokers, cfg.KafkaTopic, cfg.KafkaGroupID, notificationSvc.HandleEvent, log)
 		log.Info("kafka event bus enabled", "brokers", cfg.KafkaBrokers, "topic", cfg.KafkaTopic)
@@ -134,6 +145,34 @@ func buildEventBus(cfg *config.Config, notificationSvc *service.NotificationServ
 		log.Warn("kafka is unreachable; falling back to the in-process event bus")
 	}
 	return events.NewLocalBus(notificationSvc.HandleEvent, log), nil
+}
+
+// ensureKafkaTopic waits briefly for the broker to accept a topic creation
+// request. Kafka may answer the health check before it is ready to create
+// topics, and a missing topic makes the first outbox publish fail.
+func ensureKafkaTopic(brokers []string, topic string, log *slog.Logger) {
+	if strings.TrimSpace(topic) == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	for attempt := 1; ; attempt++ {
+		err := events.EnsureTopic(ctx, brokers, topic, 3)
+		if err == nil {
+			return
+		}
+		if ctx.Err() != nil {
+			log.Warn("could not ensure kafka topic; events will retry from the outbox", "topic", topic, "error", err)
+			return
+		}
+		log.Warn("ensuring kafka topic failed; retrying", "topic", topic, "attempt", attempt, "error", err)
+		select {
+		case <-ctx.Done():
+			log.Warn("could not ensure kafka topic; events will retry from the outbox", "topic", topic, "error", ctx.Err())
+			return
+		case <-time.After(time.Second):
+		}
+	}
 }
 
 func kafkaReachable(brokers []string) bool {

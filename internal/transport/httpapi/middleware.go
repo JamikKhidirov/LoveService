@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/loveservice/loveservice/internal/cache"
 	"github.com/loveservice/loveservice/internal/domain"
 	"github.com/loveservice/loveservice/internal/security"
+	"github.com/loveservice/loveservice/internal/store"
 )
 
 type ctxKey string
@@ -34,7 +36,7 @@ func roleFrom(ctx context.Context) string {
 	return role
 }
 
-func requireAuth(tokens *security.TokenManager) func(http.Handler) http.Handler {
+func requireAuth(tokens *security.TokenManager, st *store.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			raw := ""
@@ -56,8 +58,30 @@ func requireAuth(tokens *security.TokenManager) func(http.Handler) http.Handler 
 				writeError(w, r, slog.Default(), domain.ErrInvalidToken)
 				return
 			}
+			role := claims.Role
+			// The signature only proves the token was issued by us. Status,
+			// role and token version are read from the database so that bans,
+			// deletions, demotions and logout-all take effect immediately.
+			if st != nil {
+				state, err := st.SessionState(r.Context(), id)
+				switch {
+				case errors.Is(err, domain.ErrNotFound):
+					writeError(w, r, slog.Default(), domain.ErrUnauthorized)
+					return
+				case err != nil:
+					writeError(w, r, slog.Default(), err)
+					return
+				case state.TokenVersion != claims.Version:
+					writeError(w, r, slog.Default(), domain.ErrInvalidToken)
+					return
+				case state.Status != domain.StatusActive:
+					writeError(w, r, slog.Default(), domain.ErrAccountInactive)
+					return
+				}
+				role = state.Role
+			}
 			ctx := context.WithValue(r.Context(), userIDKey, id)
-			ctx = context.WithValue(ctx, roleKey, claims.Role)
+			ctx = context.WithValue(ctx, roleKey, role)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

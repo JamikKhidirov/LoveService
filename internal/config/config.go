@@ -64,6 +64,9 @@ type Config struct {
 	SMTPUser     string
 	SMTPPassword string
 	SMTPFrom     string
+	SMTPTLS      string
+	SMTPTimeout  time.Duration
+	MailOutbox   string
 }
 
 func Load() (*Config, error) {
@@ -111,6 +114,9 @@ func Load() (*Config, error) {
 		SMTPUser:                   env("SMTP_USER", ""),
 		SMTPPassword:               env("SMTP_PASSWORD", ""),
 		SMTPFrom:                   env("SMTP_FROM", "LoveService <no-reply@loveservice.local>"),
+		SMTPTLS:                    env("SMTP_TLS", "starttls"),
+		SMTPTimeout:                envDuration("SMTP_TIMEOUT", 15*time.Second),
+		MailOutbox:                 env("MAIL_OUTBOX_DIR", ""),
 	}
 
 	if cfg.Env == "production" {

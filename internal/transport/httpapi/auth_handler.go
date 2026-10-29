@@ -186,6 +186,14 @@ func (a *API) changePassword(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"tokens": pair})
 }
 
+func (a *API) logoutAll(w http.ResponseWriter, r *http.Request) {
+	if err := a.auth.LogoutAll(r.Context(), userIDFrom(r.Context())); err != nil {
+		writeError(w, r, a.log(), err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"logged_out": true})
+}
+
 func meta(r *http.Request) service.RequestMeta {
 	return service.RequestMeta{UserAgent: r.UserAgent(), IP: clientIP(r)}
 }

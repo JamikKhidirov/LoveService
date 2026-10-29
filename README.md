@@ -57,6 +57,9 @@ Demo accounts (seeded automatically):
 - **Notifications** — in-app notifications generated from domain events through a
   transactional outbox, Kafka fan-out (or in-process fallback), WebSocket push.
 - **Safety** — blocks, reports, moderation queue.
+- **Email** — the service generates verification/reset codes itself and delivers
+  branded HTML + plain-text letters directly over SMTP (STARTTLS/TLS), with a
+  development `.eml` outbox. See [docs/EMAIL.md](docs/EMAIL.md).
 - **Admin** — stats, user search/detail, ban/deactivate, role management,
   verification badge, report triage, photo removal, broadcasts, retention purge,
   audit log.
@@ -77,6 +80,7 @@ Demo accounts (seeded automatically):
 | [docs/TESTS.md](docs/TESTS.md) | Test layout, commands and coverage map |
 | [docs/TEST_ACCOUNTS.md](docs/TEST_ACCOUNTS.md) | Seeded users and what to test |
 | [docs/ADMIN_LAWFUL_ACCESS.md](docs/ADMIN_LAWFUL_ACCESS.md) | Lawful-access policy and workflow |
+| [docs/EMAIL.md](docs/EMAIL.md) | Self-hosted email delivery: SMTP setup, HTML letters, preview |
 | [docs/postman_collection.json](docs/postman_collection.json) | Postman collection (Import → Collection) |
 | [docs/openapi.yaml](docs/openapi.yaml) | OpenAPI 3.1 specification |
 

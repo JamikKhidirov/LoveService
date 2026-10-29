@@ -35,7 +35,7 @@ func (s *Store) CreateUserWithProfile(ctx context.Context, in CreateUserInput) (
 		VALUES ($1, $2, $3)
 		RETURNING `+userColumns,
 		in.Email, in.Phone, in.PasswordHash,
-	).Scan(&u.ID, &u.Email, &u.Phone, &u.PasswordHash, &u.Role, &u.Status, &u.EmailVerifiedAt, &u.CreatedAt, &u.UpdatedAt)
+	).Scan(&u.ID, &u.Email, &u.Phone, &u.PasswordHash, &u.Role, &u.Status, &u.TokenVersion, &u.EmailVerifiedAt, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return nil, domain.ErrEmailTaken
@@ -99,7 +99,7 @@ func (s *Store) SetEmailVerified(ctx context.Context, id uuid.UUID) error {
 }
 
 func (s *Store) UpdatePassword(ctx context.Context, id uuid.UUID, hash string) error {
-	tag, err := s.pool.Exec(ctx, `UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1`, id, hash)
+	tag, err := s.pool.Exec(ctx, `UPDATE users SET password_hash = $2, token_version = token_version + 1, updated_at = now() WHERE id = $1`, id, hash)
 	if err != nil {
 		return err
 	}
@@ -164,6 +164,61 @@ func (s *Store) RevokeRefreshToken(ctx context.Context, id uuid.UUID) error {
 func (s *Store) RevokeUserRefreshTokens(ctx context.Context, userID uuid.UUID) error {
 	_, err := s.pool.Exec(ctx, `UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, userID)
 	return err
+}
+
+// SessionState returns the live status, role and token version of an account.
+func (s *Store) SessionState(ctx context.Context, userID uuid.UUID) (*domain.SessionState, error) {
+	var st domain.SessionState
+	err := s.pool.QueryRow(ctx, `SELECT status, role, token_version FROM users WHERE id = $1`, userID).
+		Scan(&st.Status, &st.Role, &st.TokenVersion)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &st, nil
+}
+
+// LogoutAll invalidates every session of a user: all refresh tokens are revoked
+// and the token version is bumped so outstanding access tokens stop working.
+func (s *Store) LogoutAll(ctx context.Context, userID uuid.UUID) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	tag, err := tx.Exec(ctx, `UPDATE users SET token_version = token_version + 1, updated_at = now() WHERE id = $1`, userID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	if _, err := tx.Exec(ctx, `UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, userID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// ListDevices returns the push targets registered by a user.
+func (s *Store) ListDevices(ctx context.Context, userID uuid.UUID) ([]domain.Device, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, platform, token, created_at FROM devices
+		WHERE user_id = $1 ORDER BY created_at DESC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]domain.Device, 0, 4)
+	for rows.Next() {
+		var d domain.Device
+		if err := rows.Scan(&d.ID, &d.Platform, &d.Token, &d.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) DeleteExpiredRefreshTokens(ctx context.Context) (int64, error) {
@@ -236,7 +291,7 @@ func (s *Store) DeleteAccount(ctx context.Context, userID uuid.UUID) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if _, err := tx.Exec(ctx, `UPDATE users SET status = 'deleted', updated_at = now() WHERE id = $1`, userID); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE users SET status = 'deleted', token_version = token_version + 1, updated_at = now() WHERE id = $1`, userID); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM refresh_tokens WHERE user_id = $1`, userID); err != nil {

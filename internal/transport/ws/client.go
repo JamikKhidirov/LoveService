@@ -37,6 +37,7 @@ type TokenParser interface {
 
 type UserChecker interface {
 	UserExists(ctx context.Context, userID uuid.UUID) (bool, error)
+	SessionState(ctx context.Context, userID uuid.UUID) (*domain.SessionState, error)
 }
 
 type Handler struct {
@@ -103,14 +104,24 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusUnauthorized, "invalid_token", "access token is invalid")
 		return
 	}
-	ok, err := h.users.UserExists(r.Context(), userID)
-	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal_error", "could not verify user")
-		return
-	}
-	if !ok {
-		writeJSONError(w, http.StatusForbidden, "account_inactive", "account is not active")
-		return
+	if h.users != nil {
+		state, err := h.users.SessionState(r.Context(), userID)
+		if err != nil {
+			if errors.Is(err, domain.ErrNotFound) {
+				writeJSONError(w, http.StatusForbidden, "account_inactive", "account is not active")
+				return
+			}
+			writeJSONError(w, http.StatusInternalServerError, "internal_error", "could not verify user")
+			return
+		}
+		if state.Status != domain.StatusActive {
+			writeJSONError(w, http.StatusForbidden, "account_inactive", "account is not active")
+			return
+		}
+		if state.TokenVersion != claims.Version {
+			writeJSONError(w, http.StatusUnauthorized, "invalid_token", "access token has been revoked")
+			return
+		}
 	}
 
 	conn, err := h.upgrader.Upgrade(w, r, nil)

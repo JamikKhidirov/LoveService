@@ -80,6 +80,23 @@ func TestPostmanCollection(t *testing.T) {
 	}
 }
 
+func TestEmailDocumentation(t *testing.T) {
+	doc := readDoc(t, "EMAIL.md")
+	for _, want := range []string{
+		"SMTP_HOST", "SMTP_TLS", "starttls", "MAIL_OUTBOX_DIR",
+		"smtp.gmail.com", "smtp.yandex.ru", "multipart/alternative",
+		"email-preview.html", "SPF", "DKIM", "DMARC",
+	} {
+		if !strings.Contains(doc, want) {
+			t.Errorf("EMAIL.md is missing %q", want)
+		}
+	}
+	preview := readDoc(t, "email-preview.html")
+	if !strings.Contains(preview, "<!DOCTYPE html>") || !strings.Contains(preview, "LoveService") {
+		t.Error("email-preview.html does not look like a rendered preview")
+	}
+}
+
 func TestDockerComposeHasFullStack(t *testing.T) {
 	body, err := os.ReadFile("../../docker-compose.yml")
 	if err != nil {

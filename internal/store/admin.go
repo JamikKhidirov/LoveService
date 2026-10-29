@@ -350,6 +350,16 @@ func (s *Store) ApproveLegalRequest(ctx context.Context, id, adminID uuid.UUID) 
 		return nil, err
 	}
 	if tag.RowsAffected() == 0 {
+		current, getErr := s.GetLegalRequest(ctx, id)
+		if getErr != nil {
+			return nil, getErr
+		}
+		if current.CreatedBy != nil && *current.CreatedBy == adminID {
+			return nil, fmt.Errorf("%w: second-admin approval required, the request creator cannot approve it", domain.ErrForbidden)
+		}
+		if current.Status != "pending" {
+			return nil, fmt.Errorf("%w: legal request is %s, only pending requests can be approved", domain.ErrConflict, current.Status)
+		}
 		return nil, domain.ErrNotFound
 	}
 	return s.GetLegalRequest(ctx, id)

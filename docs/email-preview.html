@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>LoveService — transactional email preview</title>
+<style>
+  body { margin:0; background:#0f1020; color:#f5f5fa; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  header { padding:40px 24px 8px; max-width:1000px; margin:0 auto; }
+  h1 { margin:0 0 8px; font-size:30px; }
+  p.lead { color:#b9b9cc; margin:0 0 28px; line-height:1.6; }
+  main { max-width:1000px; margin:0 auto; padding:0 24px 48px; display:grid; gap:32px; }
+  section { background:#191a2e; border:1px solid #2a2b45; border-radius:16px; overflow:hidden; }
+  section h2 { font-size:14px; letter-spacing:1.6px; text-transform:uppercase; color:#ff9ab8; margin:0; padding:16px 20px; border-bottom:1px solid #2a2b45; }
+  iframe { width:100%; height:820px; border:0; background:#f4f5f7; display:block; }
+  code { background:#242540; padding:2px 6px; border-radius:6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>LoveService — письма</h1>
+  <p class="lead">Так выглядят письма, которые сервис генерирует и отправляет сам через SMTP.
+  Файл собран командой <code>go run ./cmd/mailpreview</code>; шаблоны лежат в
+  <code>internal/mailer/templates.go</code>.</p>
+</header>
+<main>
+  <section>
+    <h2>Подтверждение почты — LoveService: код подтверждения почты</h2>
+    <iframe title="Verification email" srcdoc="&lt;!DOCTYPE html&gt;
+&lt;html lang=&#34;ru&#34;&gt;
+&lt;head&gt;
+&lt;meta charset=&#34;utf-8&#34;&gt;
+&lt;meta name=&#34;viewport&#34; content=&#34;width=device-width, initial-scale=1&#34;&gt;
+&lt;meta name=&#34;color-scheme&#34; content=&#34;light dark&#34;&gt;
+&lt;meta name=&#34;supported-color-schemes&#34; content=&#34;light dark&#34;&gt;
+&lt;title&gt;Подтвердите почту&lt;/title&gt;
+&lt;/head&gt;
+&lt;body style=&#34;margin:0;padding:0;background:#f4f5f7;&#34;&gt;
+&lt;div style=&#34;display:none;max-height:0;overflow:hidden;opacity:0;&#34;&gt;Ваш код подтверждения&lt;/div&gt;
+&lt;table role=&#34;presentation&#34; width=&#34;100%&#34; cellpadding=&#34;0&#34; cellspacing=&#34;0&#34; border=&#34;0&#34; style=&#34;background:#f4f5f7;padding:32px 12px;&#34;&gt;
+  &lt;tr&gt;
+    &lt;td align=&#34;center&#34;&gt;
+      &lt;table role=&#34;presentation&#34; width=&#34;600&#34; cellpadding=&#34;0&#34; cellspacing=&#34;0&#34; border=&#34;0&#34; style=&#34;width:100%;max-width:600px;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 12px 40px rgba(20,20,40,0.10);font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Roboto,Helvetica,Arial,sans-serif;&#34;&gt;
+        &lt;tr&gt;
+          &lt;td style=&#34;background:linear-gradient(135deg,#ff2d75 0%,#ff6f61 55%,#ffb347 100%);padding:34px 40px;&#34;&gt;
+            &lt;table role=&#34;presentation&#34; width=&#34;100%&#34; cellpadding=&#34;0&#34; cellspacing=&#34;0&#34; border=&#34;0&#34;&gt;
+              &lt;tr&gt;
+                &lt;td style=&#34;font-size:22px;font-weight:700;letter-spacing:0.4px;color:#ffffff;&#34;&gt;LoveService&lt;/td&gt;
+                &lt;td align=&#34;right&#34; style=&#34;font-size:12px;color:#ffe3ec;letter-spacing:1.6px;text-transform:uppercase;&#34;&gt;dating&amp;nbsp;backend&lt;/td&gt;
+              &lt;/tr&gt;
+            &lt;/table&gt;
+            &lt;div style=&#34;margin-top:22px;font-size:26px;line-height:1.25;font-weight:700;color:#ffffff;&#34;&gt;Подтвердите почту&lt;/div&gt;
+          &lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&#34;padding:36px 40px 8px 40px;&#34;&gt;
+            &lt;p style=&#34;margin:0 0 20px 0;font-size:16px;line-height:1.6;color:#3b3b4f;&#34;&gt;Спасибо за регистрацию в LoveService. Введите этот код, чтобы подтвердить адрес почты и открыть доступ ко всем функциям сервиса.&lt;/p&gt;
+            &lt;table role=&#34;presentation&#34; width=&#34;100%&#34; cellpadding=&#34;0&#34; cellspacing=&#34;0&#34; border=&#34;0&#34;&gt;
+              &lt;tr&gt;
+                &lt;td align=&#34;center&#34; style=&#34;background:#fff1f6;border:1px solid #ffd0e0;border-radius:16px;padding:22px 12px;&#34;&gt;
+                  &lt;div style=&#34;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c2185b;margin-bottom:8px;&#34;&gt;Ваш код&lt;/div&gt;
+                  &lt;div style=&#34;font-family:&#39;SFMono-Regular&#39;,Consolas,&#39;Liberation Mono&#39;,Menlo,monospace;font-size:38px;line-height:1.1;font-weight:700;letter-spacing:10px;color:#1d1d2b;padding-left:10px;&#34;&gt;482913&lt;/div&gt;
+                &lt;/td&gt;
+              &lt;/tr&gt;
+            &lt;/table&gt;
+            &lt;p style=&#34;margin:22px 0 0 0;font-size:14px;line-height:1.6;color:#6b6b80;&#34;&gt;Код действует 15 минут. Если вы не регистрировались в LoveService, просто проигнорируйте это письмо.&lt;/p&gt;
+          &lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&#34;padding:28px 40px 36px 40px;&#34;&gt;
+            &lt;div style=&#34;border-top:1px solid #ececf2;padding-top:22px;font-size:13px;line-height:1.7;color:#8a8a9e;&#34;&gt;
+              Нужна помощь? Напишите на &lt;a href=&#34;mailto:support@loveservice.app&#34; style=&#34;color:#e91e63;text-decoration:none;&#34;&gt;support@loveservice.app&lt;/a&gt;.&lt;br&gt;
+              Это автоматическое письмо, отвечать на него не нужно.
+            &lt;/div&gt;
+          &lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&#34;background:#fafafc;padding:20px 40px;border-top:1px solid #f0f0f5;&#34;&gt;
+            &lt;div style=&#34;font-size:12px;line-height:1.7;color:#9a9aae;&#34;&gt;
+              © 2026 LoveService. Сервис знакомств.&lt;br&gt;
+              Вы получили это письмо, потому что указали этот адрес при регистрации или восстановлении пароля.
+            &lt;/div&gt;
+          &lt;/td&gt;
+        &lt;/tr&gt;
+      &lt;/table&gt;
+      &lt;div style=&#34;max-width:600px;margin:18px auto 0 auto;font-size:11px;line-height:1.6;color:#a6a6b8;text-align:center;&#34;&gt;
+        LoveService никогда не просит сообщать код по телефону или в чате.
+      &lt;/div&gt;
+    &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+&lt;/body&gt;
+&lt;/html&gt;"></iframe>
+  </section>
+  <section>
+    <h2>Восстановление пароля — LoveService: восстановление пароля</h2>
+    <iframe title="Password reset email" srcdoc="&lt;!DOCTYPE html&gt;
+&lt;html lang=&#34;ru&#34;&gt;
+&lt;head&gt;
+&lt;meta charset=&#34;utf-8&#34;&gt;
+&lt;meta name=&#34;viewport&#34; content=&#34;width=device-width, initial-scale=1&#34;&gt;
+&lt;meta name=&#34;color-scheme&#34; content=&#34;light dark&#34;&gt;
+&lt;meta name=&#34;supported-color-schemes&#34; content=&#34;light dark&#34;&gt;
+&lt;title&gt;Восстановление пароля&lt;/title&gt;
+&lt;/head&gt;
+&lt;body style=&#34;margin:0;padding:0;background:#f4f5f7;&#34;&gt;
+&lt;div style=&#34;display:none;max-height:0;overflow:hidden;opacity:0;&#34;&gt;Код для сброса пароля&lt;/div&gt;
+&lt;table role=&#34;presentation&#34; width=&#34;100%&#34; cellpadding=&#34;0&#34; cellspacing=&#34;0&#34; border=&#34;0&#34; style=&#34;background:#f4f5f7;padding:32px 12px;&#34;&gt;
+  &lt;tr&gt;
+    &lt;td align=&#34;center&#34;&gt;
+      &lt;table role=&#34;presentation&#34; width=&#34;600&#34; cellpadding=&#34;0&#34; cellspacing=&#34;0&#34; border=&#34;0&#34; style=&#34;width:100%;max-width:600px;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 12px 40px rgba(20,20,40,0.10);font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Roboto,Helvetica,Arial,sans-serif;&#34;&gt;
+        &lt;tr&gt;
+          &lt;td style=&#34;background:linear-gradient(135deg,#ff2d75 0%,#ff6f61 55%,#ffb347 100%);padding:34px 40px;&#34;&gt;
+            &lt;table role=&#34;presentation&#34; width=&#34;100%&#34; cellpadding=&#34;0&#34; cellspacing=&#34;0&#34; border=&#34;0&#34;&gt;
+              &lt;tr&gt;
+                &lt;td style=&#34;font-size:22px;font-weight:700;letter-spacing:0.4px;color:#ffffff;&#34;&gt;LoveService&lt;/td&gt;
+                &lt;td align=&#34;right&#34; style=&#34;font-size:12px;color:#ffe3ec;letter-spacing:1.6px;text-transform:uppercase;&#34;&gt;dating&amp;nbsp;backend&lt;/td&gt;
+              &lt;/tr&gt;
+            &lt;/table&gt;
+            &lt;div style=&#34;margin-top:22px;font-size:26px;line-height:1.25;font-weight:700;color:#ffffff;&#34;&gt;Восстановление пароля&lt;/div&gt;
+          &lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&#34;padding:36px 40px 8px 40px;&#34;&gt;
+            &lt;p style=&#34;margin:0 0 20px 0;font-size:16px;line-height:1.6;color:#3b3b4f;&#34;&gt;Мы получили запрос на восстановление пароля. Введите код ниже, чтобы задать новый пароль.&lt;/p&gt;
+            &lt;table role=&#34;presentation&#34; width=&#34;100%&#34; cellpadding=&#34;0&#34; cellspacing=&#34;0&#34; border=&#34;0&#34;&gt;
+              &lt;tr&gt;
+                &lt;td align=&#34;center&#34; style=&#34;background:#fff1f6;border:1px solid #ffd0e0;border-radius:16px;padding:22px 12px;&#34;&gt;
+                  &lt;div style=&#34;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c2185b;margin-bottom:8px;&#34;&gt;Ваш код&lt;/div&gt;
+                  &lt;div style=&#34;font-family:&#39;SFMono-Regular&#39;,Consolas,&#39;Liberation Mono&#39;,Menlo,monospace;font-size:38px;line-height:1.1;font-weight:700;letter-spacing:10px;color:#1d1d2b;padding-left:10px;&#34;&gt;902144&lt;/div&gt;
+                &lt;/td&gt;
+              &lt;/tr&gt;
+            &lt;/table&gt;
+            &lt;p style=&#34;margin:22px 0 0 0;font-size:14px;line-height:1.6;color:#6b6b80;&#34;&gt;Код действует 15 минут. Если вы не запрашивали сброс пароля, ничего не делайте — пароль останется прежним.&lt;/p&gt;
+          &lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&#34;padding:28px 40px 36px 40px;&#34;&gt;
+            &lt;div style=&#34;border-top:1px solid #ececf2;padding-top:22px;font-size:13px;line-height:1.7;color:#8a8a9e;&#34;&gt;
+              Нужна помощь? Напишите на &lt;a href=&#34;mailto:support@loveservice.app&#34; style=&#34;color:#e91e63;text-decoration:none;&#34;&gt;support@loveservice.app&lt;/a&gt;.&lt;br&gt;
+              Это автоматическое письмо, отвечать на него не нужно.
+            &lt;/div&gt;
+          &lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&#34;background:#fafafc;padding:20px 40px;border-top:1px solid #f0f0f5;&#34;&gt;
+            &lt;div style=&#34;font-size:12px;line-height:1.7;color:#9a9aae;&#34;&gt;
+              © 2026 LoveService. Сервис знакомств.&lt;br&gt;
+              Вы получили это письмо, потому что указали этот адрес при регистрации или восстановлении пароля.
+            &lt;/div&gt;
+          &lt;/td&gt;
+        &lt;/tr&gt;
+      &lt;/table&gt;
+      &lt;div style=&#34;max-width:600px;margin:18px auto 0 auto;font-size:11px;line-height:1.6;color:#a6a6b8;text-align:center;&#34;&gt;
+        LoveService никогда не просит сообщать код по телефону или в чате.
+      &lt;/div&gt;
+    &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+&lt;/body&gt;
+&lt;/html&gt;"></iframe>
+  </section>
+</main>
+</body>
+</html>

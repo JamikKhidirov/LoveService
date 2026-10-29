@@ -42,6 +42,17 @@ func writeError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err er
 	_ = json.NewEncoder(w).Encode(errorBody{Error: errorDetail{Code: code, Message: message, Details: details}})
 }
 
+// wrappedMessage keeps the explanatory part of an error that wraps a domain
+// sentinel (for example "forbidden: second-admin approval required") so clients
+// receive an actionable message instead of the generic fallback.
+func wrappedMessage(err, sentinel error, fallback string) string {
+	prefix := sentinel.Error() + ": "
+	if msg := strings.TrimPrefix(err.Error(), prefix); msg != err.Error() && msg != "" {
+		return msg
+	}
+	return fallback
+}
+
 func mapError(err error) (int, string, string, map[string]any) {
 	var v *domain.ValidationError
 	switch {
@@ -54,7 +65,7 @@ func mapError(err error) (int, string, string, map[string]any) {
 	case errors.Is(err, domain.ErrAlreadySwiped):
 		return http.StatusConflict, "already_swiped", "you have already swiped this profile", nil
 	case errors.Is(err, domain.ErrConflict):
-		return http.StatusConflict, "conflict", "resource already exists", nil
+		return http.StatusConflict, "conflict", wrappedMessage(err, domain.ErrConflict, "resource already exists"), nil
 	case errors.Is(err, domain.ErrInvalidCredentials):
 		return http.StatusUnauthorized, "invalid_credentials", "invalid email or password", nil
 	case errors.Is(err, domain.ErrInvalidToken):
@@ -66,7 +77,9 @@ func mapError(err error) (int, string, string, map[string]any) {
 	case errors.Is(err, domain.ErrBlocked):
 		return http.StatusForbidden, "blocked", "interaction is blocked", nil
 	case errors.Is(err, domain.ErrForbidden):
-		return http.StatusForbidden, "forbidden", "you are not allowed to perform this action", nil
+		return http.StatusForbidden, "forbidden", wrappedMessage(err, domain.ErrForbidden, "you are not allowed to perform this action"), nil
+	case errors.Is(err, domain.ErrAccountInactive):
+		return http.StatusForbidden, "account_inactive", "this account is not active", nil
 	case errors.Is(err, domain.ErrConversationClosed):
 		return http.StatusForbidden, "conversation_closed", "conversation is not available", nil
 	case errors.Is(err, domain.ErrSelfAction):

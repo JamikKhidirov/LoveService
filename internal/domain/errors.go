@@ -21,6 +21,7 @@ var (
 	ErrEmailNotVerified   = errors.New("email is not verified")
 	ErrMediaLimitReached  = errors.New("media limit reached")
 	ErrConversationClosed = errors.New("conversation is not available")
+	ErrAccountInactive    = errors.New("account is not active")
 )
 
 // ValidationError carries a field-level validation message.

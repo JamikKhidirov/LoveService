@@ -45,12 +45,25 @@ type User struct {
 	PasswordHash    string     `json:"-"`
 	Role            string     `json:"role"`
 	Status          string     `json:"status"`
+	TokenVersion    int        `json:"-"`
 	EmailVerifiedAt *time.Time `json:"email_verified_at,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 func (u *User) EmailVerified() bool { return u.EmailVerifiedAt != nil }
+
+// SessionState is the authoritative, database-backed view of an account used on
+// every authenticated request. It makes bans, deletions, role changes and
+// logout-all effective immediately instead of at access-token expiry.
+type SessionState struct {
+	Status       string `json:"status"`
+	Role         string `json:"role"`
+	TokenVersion int    `json:"token_version"`
+}
+
+// Device is a stored push-notification target.
+// (declared below with its full field set)
 
 type Profile struct {
 	UserID            uuid.UUID  `json:"user_id"`

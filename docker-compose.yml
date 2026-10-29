@@ -149,8 +149,18 @@ services:
       DAILY_LIKE_LIMIT: "100"
       DAILY_SUPERLIKE_LIMIT: "5"
       ADMIN_REQUIRE_SECOND_APPROVAL: "true"
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-LoveService <no-reply@loveservice.local>}
+      SMTP_TLS: ${SMTP_TLS:-starttls}
+      SMTP_TIMEOUT: ${SMTP_TIMEOUT:-15s}
+      MAIL_OUTBOX_DIR: /app/mail-outbox
       DOCS_DIR: /app/docs
       LOG_LEVEL: info
+    volumes:
+      - ./mail-outbox:/app/mail-outbox
     ports:
       - "8080:8080"
     healthcheck:

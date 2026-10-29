@@ -93,6 +93,10 @@ func (s *AccountService) DeleteDevice(ctx context.Context, userID uuid.UUID, tok
 	return s.store.DeleteDevice(ctx, userID, token)
 }
 
+func (s *AccountService) Devices(ctx context.Context, userID uuid.UUID) ([]domain.Device, error) {
+	return s.store.ListDevices(ctx, userID)
+}
+
 func (s *AccountService) Matches(ctx context.Context, userID uuid.UUID) ([]domain.Match, error) {
 	matches, err := s.store.ListMatches(ctx, userID)
 	if err != nil {

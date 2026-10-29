@@ -46,6 +46,7 @@ Authentication: `Authorization: Bearer <access_token>`.
 | POST | `/api/v1/auth/reset-password` | — | Reset with code |
 | GET | `/api/v1/auth/me` | Bearer | Current user + profile |
 | POST | `/api/v1/auth/change-password` | Bearer | Change password |
+| POST | `/api/v1/auth/logout-all` | Bearer | Revoke every session (all devices) |
 
 ### Register
 
@@ -204,6 +205,7 @@ A reciprocal like atomically creates a match, a conversation and a
 | DELETE | `/api/v1/blocks/{userID}` | Unblock |
 | POST | `/api/v1/reports` | Report a user |
 | POST | `/api/v1/devices` | Register push token |
+| GET | `/api/v1/devices` | List my push tokens |
 | DELETE | `/api/v1/devices?token=…` | Remove push token |
 
 ## Privacy

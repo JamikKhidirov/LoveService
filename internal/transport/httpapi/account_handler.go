@@ -141,6 +141,15 @@ func (a *API) saveDevice(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]bool{"saved": true})
 }
 
+func (a *API) listDevices(w http.ResponseWriter, r *http.Request) {
+	items, err := a.account.Devices(r.Context(), userIDFrom(r.Context()))
+	if err != nil {
+		writeError(w, r, a.log(), err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items, "count": len(items)})
+}
+
 func (a *API) deleteDevice(w http.ResponseWriter, r *http.Request) {
 	token := strings.TrimSpace(r.URL.Query().Get("token"))
 	if token == "" {

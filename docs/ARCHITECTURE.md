@@ -62,6 +62,13 @@ unavailable the service falls back to an in-process bus, so local development
 works without Kafka and production never loses an event between the database and
 the broker.
 
+The topic (`love.events`, 3 partitions) is created explicitly at startup, before
+the consumer and publisher start: Kafka's automatic topic creation is
+asynchronous and the very first publish after a cold start could otherwise fail
+with `Unknown Topic Or Partition`. Each flush is also time-boxed (2 s per event,
+5 s per batch), so a slow broker can never hold the publisher hostage — pending
+rows are simply retried on the next tick.
+
 ### Matches are atomic
 
 `CreateSwipe` inserts the swipe, checks for a reciprocal like, and creates the

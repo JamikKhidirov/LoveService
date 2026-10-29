@@ -146,9 +146,9 @@ func (s *AdminService) ListReports(ctx context.Context, meta AdminMeta, status s
 
 func (s *AdminService) UpdateReport(ctx context.Context, meta AdminMeta, reportID uuid.UUID, status, reason string) (*domain.Report, error) {
 	switch status {
-	case "open", "reviewing", "resolved", "dismissed":
+	case "open", "reviewed", "resolved", "dismissed":
 	default:
-		return nil, domain.Invalid("status", "status must be open, reviewing, resolved or dismissed")
+		return nil, domain.Invalid("status", "status must be open, reviewed, resolved or dismissed")
 	}
 	report, err := s.store.AdminUpdateReport(ctx, reportID, status)
 	if err != nil {

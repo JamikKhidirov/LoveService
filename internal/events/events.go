@@ -5,8 +5,12 @@ package events
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -112,6 +116,61 @@ func (b *KafkaBus) Publish(ctx context.Context, event Event) error {
 
 func (b *KafkaBus) Close() error { return b.writer.Close() }
 
+// EnsureTopic creates the event topic when it does not exist yet. Kafka's
+// auto-creation is asynchronous, so the very first publish after a cold start
+// can fail with "Unknown Topic Or Partition" and leave the outbox retrying for
+// a while; creating the topic up front removes that race entirely.
+func EnsureTopic(ctx context.Context, brokers []string, topic string, partitions int) error {
+	if len(brokers) == 0 || strings.TrimSpace(topic) == "" {
+		return nil
+	}
+	if partitions <= 0 {
+		partitions = 3
+	}
+	dialer := &kafka.Dialer{Timeout: 5 * time.Second, DualStack: true}
+
+	// Fast path: the topic is already there.
+	if _, err := dialer.LookupPartitions(ctx, "tcp", brokers[0], topic); err == nil {
+		return nil
+	}
+
+	conn, err := dialer.DialContext(ctx, "tcp", brokers[0])
+	if err != nil {
+		return fmt.Errorf("kafka dial: %w", err)
+	}
+	controller, err := conn.Controller()
+	_ = conn.Close()
+	if err != nil {
+		return fmt.Errorf("kafka controller lookup: %w", err)
+	}
+
+	controllerAddr := net.JoinHostPort(controller.Host, strconv.Itoa(controller.Port))
+	controllerConn, err := dialer.DialContext(ctx, "tcp", controllerAddr)
+	if err != nil {
+		return fmt.Errorf("kafka controller dial: %w", err)
+	}
+	defer controllerConn.Close()
+
+	err = controllerConn.CreateTopics(kafka.TopicConfig{
+		Topic:             topic,
+		NumPartitions:     partitions,
+		ReplicationFactor: 1,
+	})
+	if err == nil {
+		return nil
+	}
+	var kerr kafka.Error
+	if errors.As(err, &kerr) && kerr == kafka.TopicAlreadyExists {
+		return nil
+	}
+	// A concurrent creator may have won the race; treat an existing topic as
+	// success as long as it is actually visible now.
+	if _, lookupErr := dialer.LookupPartitions(ctx, "tcp", brokers[0], topic); lookupErr == nil {
+		return nil
+	}
+	return fmt.Errorf("create kafka topic %q: %w", topic, err)
+}
+
 // Consumer reads the shared event stream with a consumer group and dispatches
 // events to a handler. Handler errors are logged; offsets are committed by
 // kafka-go after successful reads (at-least-once delivery).
@@ -205,7 +264,13 @@ func (p *Publisher) flush(ctx context.Context) {
 		p.log.Error("fetch outbox failed", "error", err)
 		return
 	}
+	// Bound one flush so a slow or briefly unavailable broker can never keep the
+	// publisher busy for minutes: pending events are retried on the next tick.
+	deadline := time.Now().Add(5 * time.Second)
 	for _, rec := range records {
+		if time.Now().After(deadline) {
+			return
+		}
 		event := Event{
 			ID:          rec.ID.String(),
 			Type:        rec.EventType,
@@ -214,7 +279,7 @@ func (p *Publisher) flush(ctx context.Context) {
 			Payload:     json.RawMessage(rec.Payload),
 			OccurredAt:  rec.CreatedAt,
 		}
-		pubCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		pubCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		err := p.bus.Publish(pubCtx, event)
 		cancel()
 		if err != nil {
