@@ -13,19 +13,19 @@ use only exported APIs, so they validate the same surface a client sees.
 | `tests/internal/app` | composition root fails fast on invalid configuration |
 | `tests/internal/cache` | in-memory fallback, counters, rate limits, presence, JSON cache |
 | `tests/internal/config` | env parsing, production secret/CORS guards, invalid fallbacks |
-| `tests/internal/domain` | haversine distance, radius tiers, clamping, models, sentinel errors |
+| `tests/internal/domain` | haversine distance, radius tiers, clamping, models, sentinel errors, ELO maths, gift catalogue |
 | `tests/internal/events` | event encoding, local bus async delivery/panic safety, outbox publisher |
 | `tests/internal/mailer` | dev log mailer and SMTP selection |
 | `tests/internal/observability` | logger construction, metrics middleware, idempotent init |
 | `tests/internal/security` | JWT issue/parse/expiry/foreign signature, bcrypt, every validator |
-| `tests/internal/service` | constructors, swipe validation, admin validation, legal-request validation |
+| `tests/internal/service` | constructors, swipe validation, admin validation, legal-request validation, premium plans, gifts |
 | `tests/internal/storage` | local storage put/delete, traversal rejection, URL building |
 | `tests/internal/store` | migrations + ping against Postgres *(integration tag)* |
 | `tests/internal/seed` | demo + staff seed idempotency *(integration tag)* |
 | `tests/internal/transport/httpapi` | health/ready/docs/openapi, auth gate, 404 |
 | `tests/internal/transport/ws` | hub fan-out safety, presence, handshake rejection |
 | `tests/integration` | real HTTP flows: health/docs, demo flow, media, admin surface, WebSocket, registration/refresh/logout, swipe → match → chat, rewind, block/report, legal-request workflow *(integration tag)* |
-| `tests/docs` | OpenAPI markers, Postman JSON validity, compose services |
+| `tests/docs` | OpenAPI markers, Postman JSON validity, feature docs, compose services |
 
 ## Commands
 
@@ -65,6 +65,8 @@ Environment variables for integration tests:
 12. Rewind refuses matched swipes, undoes a plain swipe and lets the profile be swiped again.
 13. Blocking hides interactions, reports reach staff, swipe limits stay consistent.
 14. A legal request is created, cannot be exported while pending, and the creation is audited.
+15. Device sessions list the current login, a revoked session stops working, and logout-all invalidates every device.
+16. Premium/unlock gates “who liked me”, coins can be topped up, gifts move value between wallets and appear as `type=gift` messages.
 
 ## Adding a test
 

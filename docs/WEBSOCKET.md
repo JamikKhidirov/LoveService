@@ -75,6 +75,8 @@ Client → server:
 | `pong` | Reply to `ping` | `server_time` |
 | `message.ack` | Message stored via WS | `request_id`, `message` |
 | `message.new` | New message (REST or WS) | `conversation_id`, `message` |
+| `gift.sent` | You sent a coin gift | `conversation_id`, `message`, `gift` |
+| `gift.received` | Peer sent you a coin gift | `conversation_id`, `message`, `gift` |
 | `message.read` | Peer read your messages | `conversation_id`, `reader_id`, `read_at` |
 | `message.read.ack` | Your read request processed | `request_id`, `read_at` |
 | `typing` | Peer is typing | `conversation_id`, `user_id`, `display_name` |

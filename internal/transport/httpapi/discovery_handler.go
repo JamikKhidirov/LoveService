@@ -75,6 +75,7 @@ func (a *API) discover(w http.ResponseWriter, r *http.Request) {
 		Limit:    limit,
 		Offset:   offset,
 		Expand:   expand,
+		Sort:     q.Get("sort"),
 	}
 	if hasLat && hasLng {
 		params.Lat = &lat
@@ -90,12 +91,30 @@ func (a *API) discover(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) incomingLikes(w http.ResponseWriter, r *http.Request) {
 	limit, _, _ := intQuery(r.URL.Query().Get("limit"))
-	items, err := a.discovery.IncomingLikes(r.Context(), userIDFrom(r.Context()), limit)
+	result, err := a.discovery.IncomingLikes(r.Context(), userIDFrom(r.Context()), limit)
 	if err != nil {
 		writeError(w, r, a.log(), err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items, "count": len(items)})
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *API) topPicks(w http.ResponseWriter, r *http.Request) {
+	picks, err := a.discovery.TopPicks(r.Context(), userIDFrom(r.Context()))
+	if err != nil {
+		writeError(w, r, a.log(), err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": picks, "count": len(picks)})
+}
+
+func (a *API) profileStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := a.discovery.ProfileStats(r.Context(), userIDFrom(r.Context()))
+	if err != nil {
+		writeError(w, r, a.log(), err)
+		return
+	}
+	writeJSON(w, http.StatusOK, stats)
 }
 
 func (a *API) sentLikes(w http.ResponseWriter, r *http.Request) {

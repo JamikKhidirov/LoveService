@@ -67,6 +67,13 @@ type Config struct {
 	SMTPTLS      string
 	SMTPTimeout  time.Duration
 	MailOutbox   string
+
+	// Face verification provider. FACE_VERIFY_URL empty selects the local
+	// auto-approving verifier used for development and CI.
+	FaceVerifyURL       string
+	FaceVerifyAPIKey    string
+	FaceVerifyThreshold float64
+	FaceVerifyTimeout   time.Duration
 }
 
 func Load() (*Config, error) {
@@ -117,6 +124,10 @@ func Load() (*Config, error) {
 		SMTPTLS:                    env("SMTP_TLS", "starttls"),
 		SMTPTimeout:                envDuration("SMTP_TIMEOUT", 15*time.Second),
 		MailOutbox:                 env("MAIL_OUTBOX_DIR", ""),
+		FaceVerifyURL:              env("FACE_VERIFY_URL", ""),
+		FaceVerifyAPIKey:           env("FACE_VERIFY_API_KEY", ""),
+		FaceVerifyThreshold:        envFloat("FACE_VERIFY_THRESHOLD", 0.75),
+		FaceVerifyTimeout:          envDuration("FACE_VERIFY_TIMEOUT", 20*time.Second),
 	}
 
 	if cfg.Env == "production" {
@@ -164,6 +175,18 @@ func envBool(key string, fallback bool) bool {
 		return fallback
 	}
 	v, err := strconv.ParseBool(strings.TrimSpace(raw))
+	if err != nil {
+		return fallback
+	}
+	return v
+}
+
+func envFloat(key string, fallback float64) float64 {
+	raw, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(raw) == "" {
+		return fallback
+	}
+	v, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
 	if err != nil {
 		return fallback
 	}

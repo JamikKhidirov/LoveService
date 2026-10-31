@@ -55,26 +55,38 @@ func (s *Store) Discover(ctx context.Context, q domain.DiscoveryQuery) ([]domain
 	if q.MaxAge < q.MinAge {
 		q.MaxAge = q.MinAge
 	}
+	switch q.Sort {
+	case domain.DiscoverySortDistance, domain.DiscoverySortRating:
+	default:
+		q.Sort = domain.DiscoverySortBalanced
+	}
 
 	query := `
 WITH candidates AS (
-    SELECT p.user_id, ` + distanceExpr + ` AS distance_km
+    SELECT p.user_id, ` + distanceExpr + ` AS distance_km, u.elo_rating AS elo
     FROM profiles p
     JOIN users u ON u.id = p.user_id
     LEFT JOIN user_settings st ON st.user_id = p.user_id
     WHERE ` + discoverWhere + `
 ),
 filtered AS (
-    SELECT user_id, distance_km FROM candidates WHERE distance_km <= $7
+    SELECT user_id, distance_km, elo FROM candidates WHERE distance_km <= $7
 )
 SELECT ` + profileFields + `, f.distance_km, count(*) OVER() AS total
 FROM filtered f
 JOIN profiles p ON p.user_id = f.user_id
-ORDER BY f.distance_km ASC, p.user_id ASC
+ORDER BY
+    CASE $10::text
+        WHEN 'rating'   THEN -f.elo
+        WHEN 'distance' THEN f.distance_km
+        ELSE (f.distance_km / NULLIF($7, 0)) - 0.35 * (f.elo / 2000.0)
+    END ASC,
+    f.distance_km ASC,
+    p.user_id ASC
 LIMIT $8 OFFSET $9`
 
 	rows, err := s.pool.Query(ctx, query,
-		q.ViewerID, q.Lat, q.Lng, q.MinAge, q.MaxAge, q.Genders, q.RadiusKM, q.Limit, q.Offset,
+		q.ViewerID, q.Lat, q.Lng, q.MinAge, q.MaxAge, q.Genders, q.RadiusKM, q.Limit, q.Offset, q.Sort,
 	)
 	if err != nil {
 		return nil, 0, err

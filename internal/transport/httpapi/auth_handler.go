@@ -195,5 +195,10 @@ func (a *API) logoutAll(w http.ResponseWriter, r *http.Request) {
 }
 
 func meta(r *http.Request) service.RequestMeta {
-	return service.RequestMeta{UserAgent: r.UserAgent(), IP: clientIP(r)}
+	return service.RequestMeta{
+		UserAgent:   r.UserAgent(),
+		IP:          clientIP(r),
+		Platform:    r.Header.Get("X-Device-Platform"),
+		DeviceModel: r.Header.Get("X-Device-Model"),
+	}
 }

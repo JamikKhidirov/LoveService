@@ -4,6 +4,10 @@
 
 Base URL: `http://localhost:8080`. All JSON endpoints are under `/api/v1`.
 
+Version **1.2** adds monetization (“who liked me”, Premium, coins and virtual
+gifts), ELO attractiveness ranking, device/session management, automatic face
+verification, profile statistics and daily top picks.
+
 Successful responses:
 
 ```json
@@ -119,13 +123,16 @@ publicly readable (bucket policy is created by the API).
 | GET | `/api/v1/discovery` | Nearby discovery, auto-expanding |
 | GET | `/api/v1/discovery/nearby` | Alias |
 | GET | `/api/v1/discovery/nearby/count` | Candidate count |
-| GET | `/api/v1/discovery/likes` | Incoming likes |
+| GET | `/api/v1/discovery/likes` | Incoming likes (hidden until Premium/unlock) |
 | GET | `/api/v1/discovery/likes/sent` | Sent likes |
 | GET | `/api/v1/discovery/stats` | Badge counters |
+| GET | `/api/v1/recommendations/top-picks` | Daily top picks (4–5) |
+| POST | `/api/v1/discovery/likes/unlock` | Buy a 24h “who liked me” reveal (100 coins) |
 
 Query parameters: `lat`, `lng`, `radius_km`, `min_age`, `max_age`,
 `gender` (repeatable) or `genders` (comma-separated), `limit`, `offset`,
-`expand` (default `true`).
+`expand` (default `true`), `sort` (`balanced` by default, `distance` or
+`rating`).
 
 ```bash
 curl -s "http://localhost:8080/api/v1/discovery?lat=55.7558&lng=37.6173&radius_km=10&expand=true&limit=20" \
@@ -154,6 +161,110 @@ Response:
 `5, 12.5, 30, 75, 150, 300, 750, 1500, 3000, 8000, 20000` km
 (starting at the requested radius). `expanded_to_radius_km` reports the tier that
 produced the page.
+
+### Ranking (ELO)
+
+Every profile has an internal attractiveness rating (`elo_rating`, starting at
+1000). Likes and superlikes raise the target's rating, dislikes lower it slightly;
+likes from highly-rated users count more. `sort=rating` orders by this rating,
+`sort=balanced` (default) blends distance and rating. The rating is never exposed
+in public payloads.
+
+## Profile statistics
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/v1/profile/stats` | Views (total / last 7 days), likes received and matches |
+
+A view is recorded at most once per viewer/target/day when
+`GET /api/v1/profiles/{userID}` is called.
+
+```json
+{
+  "data": {
+    "profile_views_total": 412,
+    "profile_views_week": 38,
+    "likes_received_week": 12,
+    "likes_received_total": 94,
+    "likes_you": 12,
+    "matches_week": 3,
+    "matches_total": 21
+  }
+}
+```
+
+## Top picks
+
+`GET /api/v1/recommendations/top-picks` (alias `/api/v1/discovery/top-picks`)
+returns 4–5 profiles, computed once per user and day and stored in `top_picks`.
+The compatibility score blends shared interests, distance, verification and
+profile completeness.
+
+## Who liked me, Premium and coins
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/v1/discovery/likes` | Free users receive `premium_required=true` + a counter |
+| POST | `/api/v1/discovery/likes/unlock` | Spend 100 coins for a 24h reveal |
+| GET | `/api/v1/premium` | Premium/coin/lock status |
+| POST | `/api/v1/premium/subscribe` | Mock subscription (`month` or `year`) |
+| GET | `/api/v1/wallet` | Coin balance + recent transactions |
+| POST | `/api/v1/wallet/topup` | Mock coin purchase (`coins`, max 10 000) |
+
+Free response:
+
+```json
+{
+  "data": {
+    "items": [],
+    "count": 7,
+    "premium_required": true,
+    "premium_active": false,
+    "unlock_cost_coins": 100
+  }
+}
+```
+
+Premium members (or users with an active 24h unlock) receive the profiles in
+`items`. Premium also unlocks the list without spending coins. The subscription
+and top-up endpoints are mocks for the demo; production must verify store or
+payment-provider receipts first.
+
+## Virtual gifts
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/v1/gifts/catalog` | Fixed catalogue and coin prices |
+| POST | `/api/v1/chat/{conversationID}/gifts` | Send a gift (alias under `/conversations/...`) |
+| POST | `/api/v1/chat/{conversationID}/media` | Send a photo/video (multipart `file`) |
+
+Catalogue: `rose` 10, `heart` 25, `teddy` 50, `ring` 200, `crown` 500 coins.
+The sender is debited and the recipient credited atomically; the chat message has
+`type=gift` and a `metadata` object.
+
+```bash
+curl -sX POST http://localhost:8080/api/v1/chat/<conversation-id>/gifts \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"gift_code":"rose"}'
+```
+
+## Face verification
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/v1/verification/face` | Latest attempt (or `unverified`) |
+| POST | `/api/v1/verification/face` | Compare a selfie with the primary photo |
+
+```bash
+curl -sX POST http://localhost:8080/api/v1/verification/face \
+  -H "Authorization: Bearer $TOKEN" \
+  -F 'file=@selfie.jpg'
+```
+
+The server stores the selfie, calls the provider configured through
+`FACE_VERIFY_URL` / `FACE_VERIFY_API_KEY` and approves when the score reaches
+`FACE_VERIFY_THRESHOLD` (default `0.75`). An empty URL selects the development
+auto-approver. Approval sets `profiles.is_verified` and emits `user.verified`.
 
 ## Swipes and matches
 
@@ -186,6 +297,11 @@ A reciprocal like atomically creates a match, a conversation and a
 | POST | `/api/v1/messages` | Send message with `conversation_id` |
 | POST | `/api/v1/conversations/{id}/read` | Read receipts |
 | POST | `/api/v1/conversations/{id}/typing` | Typing indicator |
+| POST | `/api/v1/conversations/{id}/media` | Send a photo/video (`file`) |
+| POST | `/api/v1/conversations/{id}/gifts` | Send a coin gift |
+
+Chat message types: `text`, `image`, `video`, `gift`, `system`. Gift messages
+carry the gift payload in `metadata`.
 
 ## Notifications
 
@@ -207,6 +323,50 @@ A reciprocal like atomically creates a match, a conversation and a
 | POST | `/api/v1/devices` | Register push token |
 | GET | `/api/v1/devices` | List my push tokens |
 | DELETE | `/api/v1/devices?token=…` | Remove push token |
+
+### Device & session management
+
+Each login creates an `auth_sessions` row. Access tokens carry the session id in
+the `sid` claim, so revoking one row logs that device out immediately.
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/v1/sessions` | Active devices: IP, phone model, platform, login date, `current` |
+| DELETE | `/api/v1/sessions/{sessionID}` | Log out one device |
+| POST | `/api/v1/auth/logout-all` | Log out everywhere (all sessions) |
+
+Phones and native clients should send `X-Device-Platform: ios|android` and
+`X-Device-Model: iPhone 15 Pro` on login/register so the list is readable:
+
+```bash
+curl -sX POST http://localhost:8080/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -H 'X-Device-Platform: android' \
+  -H 'X-Device-Model: Pixel 8' \
+  -d '{"email":"demo@loveservice.app","password":"LoveDemo123!"}'
+
+curl -s http://localhost:8080/api/v1/sessions \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{
+  "data": {
+    "count": 2,
+    "items": [
+      {
+        "id": "…",
+        "platform": "android",
+        "device_model": "Pixel 8",
+        "ip": "203.0.113.10",
+        "created_at": "2026-10-31T09:12:44Z",
+        "last_seen_at": "2026-10-31T09:40:02Z",
+        "current": true
+      }
+    ]
+  }
+}
+```
 
 ## Privacy
 
@@ -286,9 +446,11 @@ audit log.
 | HTTP | Code | Meaning |
 |---|---|---|
 | 401 | `unauthorized`, `invalid_token`, `invalid_credentials` | Authentication failed |
+| 402 | `premium_required`, `insufficient_coins` | Paywall or empty wallet |
 | 403 | `forbidden`, `blocked`, `conversation_closed`, `account_inactive` | Not allowed |
 | 404 | `not_found` | Missing resource |
 | 409 | `email_taken`, `already_swiped`, `conflict` | Conflict |
-| 422 | `validation_error`, `self_action`, `media_limit_reached` | Invalid input |
+| 422 | `validation_error`, `self_action`, `media_limit_reached`, `photo_required` | Invalid input |
 | 429 | `rate_limited`, `daily_limit_reached` | Too many requests |
 | 500 | `internal_error` | Server error |
+| 502 | `verification_failed` | Face-verification provider error |

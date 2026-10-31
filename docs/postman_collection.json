@@ -60,6 +60,11 @@
       "key": "reportID",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "sessionID",
+      "value": "",
+      "type": "string"
     }
   ],
   "auth": {
@@ -377,6 +382,20 @@
             "method": "POST",
             "url": "{{baseUrl}}/api/v1/auth/logout-all"
           }
+        },
+        {
+          "name": "List sessions",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/sessions"
+          }
+        },
+        {
+          "name": "Revoke session",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/v1/sessions/{{sessionID}}"
+          }
         }
       ]
     },
@@ -484,6 +503,37 @@
           "request": {
             "method": "DELETE",
             "url": "{{baseUrl}}/api/v1/profiles/me"
+          }
+        },
+        {
+          "name": "Profile stats",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/profile/stats"
+          }
+        },
+        {
+          "name": "Face verification status",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/verification/face"
+          }
+        },
+        {
+          "name": "Submit face selfie",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/v1/verification/face",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            }
           }
         }
       ]
@@ -599,6 +649,30 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/v1/discovery/stats"
+          }
+        },
+        {
+          "name": "Top picks",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/recommendations/top-picks"
+          }
+        },
+        {
+          "name": "Unlock who liked me",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/v1/discovery/likes/unlock",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
           }
         }
       ]
@@ -881,6 +955,100 @@
           "request": {
             "method": "DELETE",
             "url": "{{baseUrl}}/api/v1/devices?token=fcm-demo-token"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Premium & Gifts",
+      "item": [
+        {
+          "name": "Premium status",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/premium"
+          }
+        },
+        {
+          "name": "Subscribe (month)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/v1/premium/subscribe",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan\": \"month\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Wallet",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/wallet"
+          }
+        },
+        {
+          "name": "Top up 500 coins",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/v1/wallet/topup",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"coins\": 500,\n  \"reference\": \"demo-topup\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Gift catalog",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/gifts/catalog"
+          }
+        },
+        {
+          "name": "Send gift",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/v1/chat/{{conversationID}}/gifts",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gift_code\": \"rose\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Send chat media",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/v1/chat/{{conversationID}}/media",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            }
           }
         }
       ]

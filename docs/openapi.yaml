@@ -1,11 +1,15 @@
 ﻿openapi: 3.1.0
 info:
   title: LoveService API
-  version: 1.0.0
+  version: 1.2.0
   description: |
     Dating-backend API: registration, profiles, media, nearby discovery,
     swipes, matches, chat, notifications, moderation and **lawful-access
     (technical admin)** endpoints.
+
+    v1.2 adds monetization (**who liked me**, Premium, coins and virtual
+    gifts), ELO attractiveness ranking, device/session management, automatic
+    face verification, profile statistics and daily top picks.
 
     ## Response envelope
     Successful responses are wrapped as `{"data": ...}`.
@@ -44,6 +48,8 @@ tags:
   - name: Notifications
   - name: Safety
   - name: Devices
+  - name: Premium
+  - name: Verification
   - name: Privacy
   - name: Realtime
   - name: Admin
@@ -415,6 +421,63 @@ paths:
               schema: {$ref: '#/components/schemas/ProfileEnvelope'}
         '403': {description: Blocked or hidden}
         '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/profile/stats:
+    get:
+      tags: [Profile]
+      summary: Profile statistics (views and likes)
+      description: |
+        Records one profile view per viewer/target/day. Returns total and
+        last-7-days counters plus incoming likes and matches.
+      responses:
+        '200':
+          description: Profile statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/ProfileStats'}
+  /api/v1/verification/face:
+    get:
+      tags: [Verification]
+      summary: Latest face-verification attempt
+      responses:
+        '200':
+          description: 'Latest attempt, or {"status": "unverified"}'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/FaceVerification'}
+    post:
+      tags: [Verification]
+      summary: Verify identity by comparing a selfie with the profile photo
+      description: |
+        Send the selfie as multipart form data in the `file` (or `selfie`) field.
+        The server stores it, calls the configured ML provider (auto-approver when
+        `FACE_VERIFY_URL` is empty) and sets `profiles.is_verified` when the
+        similarity score reaches `FACE_VERIFY_THRESHOLD` (default 0.75).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+      responses:
+        '201':
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/FaceVerification'}
+        '422': {description: No profile photo, or the selfie is invalid}
+        '502': {description: The provider failed}
   /api/v1/profiles/me/photos:
     get:
       tags: [Media]
@@ -496,6 +559,13 @@ paths:
         - {name: limit, in: query, schema: {type: integer, default: 20, maximum: 50}}
         - {name: offset, in: query, schema: {type: integer, default: 0}}
         - {name: expand, in: query, schema: {type: boolean, default: true}}
+        - name: sort
+          in: query
+          description: |
+            `balanced` (default) blends distance and the internal attractiveness
+            rating, `distance` orders strictly by proximity and `rating` surfaces
+            the most liked profiles first.
+          schema: {type: string, enum: [balanced, distance, rating], default: balanced}
       responses:
         '200':
           description: Discovery page
@@ -539,13 +609,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  data:
-                    type: object
-                    properties:
-                      items:
-                        type: array
-                        items: {$ref: '#/components/schemas/IncomingLike'}
-                      count: {type: integer}
+                  data: {$ref: '#/components/schemas/IncomingLikesResult'}
   /api/v1/discovery/likes/sent:
     get:
       tags: [Discovery]
@@ -567,6 +631,148 @@ paths:
                 type: object
                 properties:
                   data: {$ref: '#/components/schemas/Stats'}
+  /api/v1/discovery/likes/unlock:
+    post:
+      tags: [Premium]
+      summary: Unlock "who liked me" for 24 hours with coins
+      description: |
+        Costs 100 coins. Premium members and already-unlocked accounts are
+        returned unchanged (idempotent). A wallet with too few coins receives
+        `402 insufficient_coins`.
+      responses:
+        '200':
+          description: Updated premium/wallet status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/PremiumStatus'}
+        '402': {$ref: '#/components/responses/PaymentRequired'}
+  /api/v1/recommendations/top-picks:
+    get:
+      tags: [Discovery]
+      summary: Daily top picks (4–5 profiles)
+      description: |
+        Computed once per user and day and persisted, so repeated calls are
+        stable. The score blends shared interests, distance, verification and
+        profile completeness. `/api/v1/discovery/top-picks` is an alias.
+      responses:
+        '200':
+          description: Top picks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      count: {type: integer}
+                      items:
+                        type: array
+                        items: {$ref: '#/components/schemas/TopPick'}
+        '422': {$ref: '#/components/responses/Validation'}
+  /api/v1/discovery/top-picks:
+    get:
+      tags: [Discovery]
+      summary: Alias of /recommendations/top-picks
+      responses:
+        '200': {description: Top picks}
+  /api/v1/premium:
+    get:
+      tags: [Premium]
+      summary: Premium and coin status
+      responses:
+        '200':
+          description: Premium status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/PremiumStatus'}
+  /api/v1/premium/subscribe:
+    post:
+      tags: [Premium]
+      summary: Subscribe to Premium (mock payment)
+      description: |
+        Development/demo endpoint. A production deployment must only call this
+        after a verified App Store / Google Play / payment-provider receipt.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                plan: {type: string, enum: [month, year], default: month}
+      responses:
+        '200':
+          description: Updated premium status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/PremiumStatus'}
+        '422': {$ref: '#/components/responses/Validation'}
+  /api/v1/wallet:
+    get:
+      tags: [Premium]
+      summary: Coin balance and recent transactions
+      responses:
+        '200':
+          description: Wallet
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/Wallet'}
+  /api/v1/wallet/topup:
+    post:
+      tags: [Premium]
+      summary: Top up coins (mock purchase)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [coins]
+              properties:
+                coins: {type: integer, minimum: 1, maximum: 10000}
+                reference: {type: string, description: Optional store receipt / order id}
+      responses:
+        '200':
+          description: Updated wallet
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/Wallet'}
+        '422': {$ref: '#/components/responses/Validation'}
+  /api/v1/gifts/catalog:
+    get:
+      tags: [Chat]
+      summary: Virtual gift catalogue
+      responses:
+        '200':
+          description: Gifts and prices in coins
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      count: {type: integer}
+                      items:
+                        type: array
+                        items: {$ref: '#/components/schemas/Gift'}
   /api/v1/swipes:
     post:
       tags: [Swipes]
@@ -723,6 +929,96 @@ paths:
                 properties:
                   data: {$ref: '#/components/schemas/Message'}
         '403': {description: Conversation closed}
+  /api/v1/conversations/{conversationID}/media:
+    post:
+      tags: [Chat]
+      summary: Send a photo or video in a chat
+      parameters:
+        - $ref: '#/components/parameters/ConversationID'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+      responses:
+        '201':
+          description: Message with `type=image|video`
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/Message'}
+        '403': {description: Conversation closed}
+        '422': {$ref: '#/components/responses/Validation'}
+  /api/v1/chat/{conversationID}/media:
+    post:
+      tags: [Chat]
+      summary: Alias of /conversations/{conversationID}/media
+      parameters:
+        - $ref: '#/components/parameters/ConversationID'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: {type: string, format: binary}
+      responses:
+        '201': {description: Message}
+  /api/v1/conversations/{conversationID}/gifts:
+    post:
+      tags: [Chat, Premium]
+      summary: Send a virtual gift paid with coins
+      description: |
+        The sender is debited and the recipient credited in one transaction. The
+        gift appears as a message with `type=gift` and `metadata.gift_code`.
+        Prices: rose 10, heart 25, teddy 50, ring 200, crown 500 coins.
+      parameters:
+        - $ref: '#/components/parameters/ConversationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [gift_code]
+              properties:
+                gift_code: {type: string, enum: [rose, heart, teddy, ring, crown]}
+      responses:
+        '201':
+          description: Sent gift, message and remaining balance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/GiftMessage'}
+        '402': {$ref: '#/components/responses/PaymentRequired'}
+        '422': {$ref: '#/components/responses/Validation'}
+  /api/v1/chat/{conversationID}/gifts:
+    post:
+      tags: [Chat, Premium]
+      summary: Alias of /conversations/{conversationID}/gifts
+      parameters:
+        - $ref: '#/components/parameters/ConversationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                gift_code: {type: string}
+                code: {type: string}
+      responses:
+        '201': {description: Sent gift}
+        '402': {$ref: '#/components/responses/PaymentRequired'}
   /api/v1/messages:
     post:
       tags: [Chat]
@@ -896,6 +1192,39 @@ paths:
         - {name: token, in: query, required: true, schema: {type: string}}
       responses:
         '204': {description: Removed}
+  /api/v1/sessions:
+    get:
+      tags: [Devices]
+      summary: List logged-in devices (IP, phone model, login date)
+      description: |
+        Every login creates an `auth_sessions` row. Access tokens carry its id in
+        the `sid` claim, so revoking a session logs that device out immediately.
+        `current=true` marks the device that made this request.
+      responses:
+        '200':
+          description: Active sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      count: {type: integer}
+                      items:
+                        type: array
+                        items: {$ref: '#/components/schemas/AuthSession'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/sessions/{sessionID}:
+    delete:
+      tags: [Devices]
+      summary: Log out one device
+      parameters:
+        - {name: sessionID, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '204': {description: Session revoked}
+        '404': {$ref: '#/components/responses/NotFound'}
   /api/v1/account/export:
     get:
       tags: [Privacy]
@@ -1273,6 +1602,11 @@ components:
       content:
         application/json:
           schema: {$ref: '#/components/schemas/Error'}
+    PaymentRequired:
+      description: Not enough coins or a premium subscription is required
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
   schemas:
     Error:
       type: object
@@ -1294,6 +1628,9 @@ components:
         role: {type: string, enum: [user, moderator, admin]}
         status: {type: string, enum: [active, deactivated, banned, deleted]}
         email_verified_at: {type: string, format: date-time}
+        premium_until: {type: string, format: date-time, nullable: true}
+        likes_unlocked_until: {type: string, format: date-time, nullable: true}
+        coins: {type: integer}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
     Profile:
@@ -1419,6 +1756,99 @@ components:
         action: {type: string, enum: [like, superlike]}
         created_at: {type: string, format: date-time}
         matched: {type: boolean}
+    IncomingLikesResult:
+      type: object
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/IncomingLike'}
+        count: {type: integer}
+        premium_required:
+          type: boolean
+          description: True when free users only see the counter
+        premium_active: {type: boolean}
+        likes_unlocked_until: {type: string, format: date-time, nullable: true}
+        unlock_cost_coins: {type: integer, example: 100}
+    AuthSession:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        platform: {type: string, enum: [ios, android, web]}
+        device_model: {type: string, example: iPhone 15 Pro}
+        ip: {type: string, example: 203.0.113.10}
+        user_agent: {type: string}
+        created_at: {type: string, format: date-time, description: Login date}
+        last_seen_at: {type: string, format: date-time}
+        revoked_at: {type: string, format: date-time, nullable: true}
+        current: {type: boolean, description: This is the device making the request}
+    PremiumStatus:
+      type: object
+      properties:
+        active: {type: boolean}
+        premium_until: {type: string, format: date-time, nullable: true}
+        coins: {type: integer}
+        likes_unlocked_until: {type: string, format: date-time, nullable: true}
+        locked_incoming_likes: {type: integer}
+        unlock_cost_coins: {type: integer, example: 100}
+    ProfileStats:
+      type: object
+      properties:
+        profile_views_total: {type: integer}
+        profile_views_week: {type: integer}
+        likes_received_week: {type: integer}
+        likes_received_total: {type: integer}
+        likes_you: {type: integer}
+        matches_week: {type: integer}
+        matches_total: {type: integer}
+    TopPick:
+      type: object
+      properties:
+        profile: {$ref: '#/components/schemas/Profile'}
+        rank: {type: integer, minimum: 1}
+        compatibility_score: {type: number, format: double, minimum: 0, maximum: 1}
+        for_date: {type: string, format: date}
+    FaceVerification:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        selfie_url: {type: string}
+        reference_photo_id: {type: string, format: uuid}
+        score: {type: number, format: double}
+        provider: {type: string, enum: [auto, http]}
+        status: {type: string, enum: [pending, approved, rejected, manual_review, error]}
+        reason: {type: string}
+        created_at: {type: string, format: date-time}
+        reviewed_at: {type: string, format: date-time}
+    Gift:
+      type: object
+      properties:
+        code: {type: string, enum: [rose, heart, teddy, ring, crown]}
+        name: {type: string}
+        emoji: {type: string}
+        coins: {type: integer}
+    GiftMessage:
+      type: object
+      properties:
+        message: {$ref: '#/components/schemas/Message'}
+        gift: {$ref: '#/components/schemas/Gift'}
+        sender_coins: {type: integer}
+    CoinTransaction:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        amount: {type: integer, description: Negative for debits}
+        kind: {type: string, enum: [topup, gift_sent, gift_received, likes_unlock]}
+        reference: {type: string}
+        balance_after: {type: integer}
+        created_at: {type: string, format: date-time}
+    Wallet:
+      type: object
+      properties:
+        coins: {type: integer}
+        premium_until: {type: string, format: date-time, nullable: true}
+        transactions:
+          type: array
+          items: {$ref: '#/components/schemas/CoinTransaction'}
     Stats:
       type: object
       properties:
@@ -1473,8 +1903,12 @@ components:
         conversation_id: {type: string, format: uuid}
         sender_id: {type: string, format: uuid}
         body: {type: string}
-        type: {type: string, enum: [text, image, video]}
+        type: {type: string, enum: [text, image, video, gift, system]}
         media_url: {type: string}
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Gift payload (`gift_code`, `gift_name`, `gift_emoji`, `coins`) or media details
         read_at: {type: string, format: date-time}
         created_at: {type: string, format: date-time}
     Notification:

@@ -42,6 +42,26 @@ func (s *Store) CreateSwipe(ctx context.Context, swiperID, targetID uuid.UUID, a
 		return nil, err
 	}
 
+	// ELO / attractiveness update. The target is rated by the swiper, so being
+	// liked by many (and by higher-rated people) moves the profile up in
+	// discovery ordering. A dislike is only a mild negative signal.
+	if outcome, k, ok := domain.ELOParamsForAction(action); ok {
+		var targetRating, swiperRating float64
+		if err := tx.QueryRow(ctx, `SELECT elo_rating FROM users WHERE id = $1`, targetID).Scan(&targetRating); err != nil {
+			return nil, err
+		}
+		if err := tx.QueryRow(ctx, `SELECT elo_rating FROM users WHERE id = $1`, swiperID).Scan(&swiperRating); err != nil {
+			return nil, err
+		}
+		next := domain.NextELORating(targetRating, swiperRating, outcome, k)
+		if _, err := tx.Exec(ctx, `UPDATE users SET elo_rating = $2, updated_at = now() WHERE id = $1`, targetID, next); err != nil {
+			return nil, err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE swipes SET elo_delta = $2 WHERE id = $1`, sw.ID, next-targetRating); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := enqueueTx(ctx, tx, "love.events", "swipe.created", sw.ID.String(), map[string]any{
 		"swipe_id":   sw.ID,
 		"swiper_id":  swiperID,
@@ -156,8 +176,9 @@ func (s *Store) Rewind(ctx context.Context, userID uuid.UUID, within time.Durati
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var sw domain.Swipe
+	var eloDelta float64
 	err = tx.QueryRow(ctx, `
-		SELECT id, swiper_id, target_id, action, created_at
+		SELECT id, swiper_id, target_id, action, created_at, elo_delta
 		FROM swipes
 		WHERE swiper_id = $1 AND created_at >= now() - $2::interval
 		  AND NOT EXISTS (
@@ -167,7 +188,7 @@ func (s *Store) Rewind(ctx context.Context, userID uuid.UUID, within time.Durati
 		  )
 		ORDER BY created_at DESC
 		LIMIT 1`, userID, within.String(),
-	).Scan(&sw.ID, &sw.SwiperID, &sw.TargetID, &sw.Action, &sw.CreatedAt)
+	).Scan(&sw.ID, &sw.SwiperID, &sw.TargetID, &sw.Action, &sw.CreatedAt, &eloDelta)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrNotFound
 	}
@@ -176,6 +197,13 @@ func (s *Store) Rewind(ctx context.Context, userID uuid.UUID, within time.Durati
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM swipes WHERE id = $1`, sw.ID); err != nil {
 		return nil, err
+	}
+	if eloDelta != 0 {
+		if _, err := tx.Exec(ctx, `
+			UPDATE users SET elo_rating = GREATEST($3, LEAST($4, elo_rating - $2)), updated_at = now()
+			WHERE id = $1`, sw.TargetID, eloDelta, domain.MinELORating, domain.MaxELORating); err != nil {
+			return nil, err
+		}
 	}
 	if err := enqueueTx(ctx, tx, "love.events", "swipe.rewound", sw.ID.String(), map[string]any{
 		"swipe_id":  sw.ID,

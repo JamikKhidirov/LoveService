@@ -57,6 +57,10 @@ docker compose up -d --build
 | `DAILY_LIKE_LIMIT` | `100` | |
 | `DAILY_SUPERLIKE_LIMIT` | `5` | |
 | `REWIND_WINDOW` | `5m` | |
+| `FACE_VERIFY_URL` | empty | Face-comparison provider; empty → dev auto-approver |
+| `FACE_VERIFY_API_KEY` | empty | Bearer token for the provider |
+| `FACE_VERIFY_THRESHOLD` | `0.75` | Minimum similarity score for approval |
+| `FACE_VERIFY_TIMEOUT` | `20s` | Provider request timeout |
 | `ADMIN_REQUIRE_SECOND_APPROVAL` | `true` | lawful-access four-eyes |
 | `DOCS_DIR` | `./docs` | OpenAPI file location |
 

@@ -42,7 +42,8 @@ are external services.
 | `internal/storage` | Media abstraction: local FS or S3/MinIO |
 | `internal/events` | Transactional outbox, Kafka bus, local bus, consumer |
 | `internal/mailer` | SMTP or dev logger |
-| `internal/service` | Business rules (auth, profile, discovery, swipe, chat, admin…) |
+| `internal/service` | Business rules (auth, profile, discovery, swipe, chat, premium, verification, admin…) |
+| `internal/verification` | Pluggable face-comparison providers (auto dev verifier + HTTP ML client) |
 | `internal/transport/httpapi` | Routes, middleware, request/response mapping |
 | `internal/transport/ws` | WebSocket hub, clients, Redis fan-out |
 | `internal/observability` | Structured logs, Prometheus metrics |
@@ -106,6 +107,27 @@ Candidates are filtered in SQL (status, discoverability, blocks, already swiped,
 gender, age) and ranked by a haversine expression. No PostGIS dependency is
 required. The service walks radius tiers to implement “start nearby, then expand”.
 
+### ELO ranking and monetization
+
+Every profile carries an internal `users.elo_rating` (1000 by default, clamped to
+100–3000). Swipes update it with the standard logistic formula and store the
+delta in `swipes.elo_delta`, so rewind can reverse the movement. Discovery can
+order by `distance`, `rating` or a `balanced` blend of both.
+
+“Who liked me” is gated: free users receive only a counter; Premium
+(`users.premium_until`) or a 24h coin unlock (`users.likes_unlocked_until`)
+reveals the profiles. Coins live in the wallet (`users.coins` +
+`coin_transactions`); gifts are transferred atomically and recorded in
+`gift_transactions`. Top picks are persisted per user/day in `top_picks`.
+
+### Device sessions
+
+Each login creates an `auth_sessions` row and access tokens carry its id in the
+`sid` claim. The auth middleware checks the row on every request and touches
+`last_seen_at` at most once a minute, so `DELETE /api/v1/sessions/{id}` takes
+effect immediately. `logout-all`, password change and ban revoke all sessions
+and bump `users.token_version`.
+
 ### Security
 
 - Passwords: bcrypt cost 12.
@@ -136,10 +158,11 @@ See [ADMIN_LAWFUL_ACCESS.md](ADMIN_LAWFUL_ACCESS.md).
 ## Data model (main tables)
 
 - `users`, `profiles`, `preferences`, `user_settings`
-- `photos`
+- `photos`, `face_verifications`
 - `swipes`, `matches`, `conversations`, `messages`
 - `notifications`, `devices`, `blocks`, `reports`
-- `refresh_tokens`, `email_codes`
+- `refresh_tokens`, `auth_sessions`, `email_codes`
+- `profile_views`, `top_picks`, `gift_transactions`, `coin_transactions`
 - `outbox_events`
 - `admin_audit_logs`, `legal_requests`
 

@@ -107,7 +107,7 @@ services:
     build:
       context: .
       args:
-        VERSION: 1.0.0
+        VERSION: 1.2.0
         # Override with GO_VERSION=1.26 to build offline if the 1.23 tag is not cached.
         GO_VERSION: ${GO_VERSION:-1.23}
     container_name: love-api
@@ -157,6 +157,10 @@ services:
       SMTP_TLS: ${SMTP_TLS:-starttls}
       SMTP_TIMEOUT: ${SMTP_TIMEOUT:-15s}
       MAIL_OUTBOX_DIR: /app/mail-outbox
+      FACE_VERIFY_URL: ${FACE_VERIFY_URL:-}
+      FACE_VERIFY_API_KEY: ${FACE_VERIFY_API_KEY:-}
+      FACE_VERIFY_THRESHOLD: ${FACE_VERIFY_THRESHOLD:-0.75}
+      FACE_VERIFY_TIMEOUT: ${FACE_VERIFY_TIMEOUT:-20s}
       DOCS_DIR: /app/docs
       LOG_LEVEL: info
     volumes:

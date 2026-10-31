@@ -22,6 +22,10 @@ var (
 	ErrMediaLimitReached  = errors.New("media limit reached")
 	ErrConversationClosed = errors.New("conversation is not available")
 	ErrAccountInactive    = errors.New("account is not active")
+	ErrPremiumRequired    = errors.New("premium subscription required")
+	ErrInsufficientCoins  = errors.New("insufficient coins")
+	ErrPhotoRequired      = errors.New("a profile photo is required")
+	ErrVerificationFailed = errors.New("face verification did not pass")
 )
 
 // ValidationError carries a field-level validation message.

@@ -36,6 +36,25 @@ const (
 	MessageText  = "text"
 	MessageImage = "image"
 	MessageVideo = "video"
+	MessageGift  = "gift"
+
+	VerificationPending      = "pending"
+	VerificationApproved     = "approved"
+	VerificationRejected     = "rejected"
+	VerificationManualReview = "manual_review"
+	VerificationError        = "error"
+
+	PremiumPlanMonth = "month"
+	PremiumPlanYear  = "year"
+
+	CoinKindTopup        = "topup"
+	CoinKindGiftSent     = "gift_sent"
+	CoinKindGiftReceived = "gift_received"
+	CoinKindLikesUnlock  = "likes_unlock"
+
+	DiscoverySortBalanced = "balanced"
+	DiscoverySortDistance = "distance"
+	DiscoverySortRating   = "rating"
 )
 
 type User struct {
@@ -49,6 +68,21 @@ type User struct {
 	EmailVerifiedAt *time.Time `json:"email_verified_at,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
+
+	// Monetization and ranking. PremiumUntil and LikesUnlockedUntil are exposed
+	// so clients can render paywalls; ELORating is internal.
+	PremiumUntil       *time.Time `json:"premium_until,omitempty"`
+	LikesUnlockedUntil *time.Time `json:"likes_unlocked_until,omitempty"`
+	Coins              int        `json:"coins"`
+	ELORating          float64    `json:"-"`
+}
+
+func (u *User) PremiumActive() bool {
+	return u != nil && u.PremiumUntil != nil && u.PremiumUntil.After(time.Now().UTC())
+}
+
+func (u *User) LikesUnlocked() bool {
+	return u != nil && u.LikesUnlockedUntil != nil && u.LikesUnlockedUntil.After(time.Now().UTC())
 }
 
 func (u *User) EmailVerified() bool { return u.EmailVerifiedAt != nil }
@@ -156,14 +190,15 @@ type Conversation struct {
 }
 
 type Message struct {
-	ID             uuid.UUID  `json:"id"`
-	ConversationID uuid.UUID  `json:"conversation_id"`
-	SenderID       uuid.UUID  `json:"sender_id"`
-	Body           string     `json:"body"`
-	Type           string     `json:"type"`
-	MediaURL       *string    `json:"media_url,omitempty"`
-	ReadAt         *time.Time `json:"read_at,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
+	ID             uuid.UUID      `json:"id"`
+	ConversationID uuid.UUID      `json:"conversation_id"`
+	SenderID       uuid.UUID      `json:"sender_id"`
+	Body           string         `json:"body"`
+	Type           string         `json:"type"`
+	MediaURL       *string        `json:"media_url,omitempty"`
+	Metadata       map[string]any `json:"metadata,omitempty"`
+	ReadAt         *time.Time     `json:"read_at,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
 }
 
 type Notification struct {
@@ -180,6 +215,7 @@ type Notification struct {
 type RefreshToken struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
+	SessionID *uuid.UUID
 	TokenHash string
 	ExpiresAt time.Time
 	RevokedAt *time.Time
@@ -241,6 +277,7 @@ type DiscoveryQuery struct {
 	Offset        int
 	HasLocation   bool
 	ExcludeViewed bool
+	Sort          string
 }
 
 type IncomingLike struct {
@@ -350,4 +387,99 @@ type LegalExport struct {
 	Data       map[string]any `json:"data"`
 	ExportedAt time.Time      `json:"exported_at"`
 	SHA256     string         `json:"sha256"`
+}
+
+// AuthSession is one logged-in device. Access tokens carry its id in the `sid`
+// claim, so revoking a row invalidates that device immediately.
+type AuthSession struct {
+	ID          uuid.UUID  `json:"id"`
+	UserID      uuid.UUID  `json:"-"`
+	Platform    string     `json:"platform"`
+	DeviceModel string     `json:"device_model"`
+	IP          string     `json:"ip"`
+	UserAgent   string     `json:"user_agent"`
+	CreatedAt   time.Time  `json:"created_at"`
+	LastSeenAt  time.Time  `json:"last_seen_at"`
+	RevokedAt   *time.Time `json:"revoked_at,omitempty"`
+	Current     bool       `json:"current"`
+}
+
+// PremiumStatus is the paywall state of the calling account.
+type PremiumStatus struct {
+	Active             bool       `json:"active"`
+	PremiumUntil       *time.Time `json:"premium_until,omitempty"`
+	Coins              int        `json:"coins"`
+	LikesUnlockedUntil *time.Time `json:"likes_unlocked_until,omitempty"`
+	LockedLikes        int        `json:"locked_incoming_likes"`
+	UnlockCostCoins    int        `json:"unlock_cost_coins"`
+}
+
+// IncomingLikesResult is the "who liked me" payload. Free users receive the
+// counter and a paywall marker instead of the profiles.
+type IncomingLikesResult struct {
+	Items              []IncomingLike `json:"items"`
+	Count              int            `json:"count"`
+	Locked             bool           `json:"premium_required"`
+	PremiumActive      bool           `json:"premium_active"`
+	LikesUnlockedUntil *time.Time     `json:"likes_unlocked_until,omitempty"`
+	UnlockCostCoins    int            `json:"unlock_cost_coins"`
+}
+
+// ProfileStats backs GET /api/v1/profile/stats.
+type ProfileStats struct {
+	ProfileViewsTotal  int `json:"profile_views_total"`
+	ProfileViewsWeek   int `json:"profile_views_week"`
+	LikesReceivedWeek  int `json:"likes_received_week"`
+	LikesReceivedTotal int `json:"likes_received_total"`
+	LikesYou           int `json:"likes_you"`
+	MatchesWeek        int `json:"matches_week"`
+	MatchesTotal       int `json:"matches_total"`
+}
+
+// TopPick is one daily recommendation with its compatibility score.
+type TopPick struct {
+	Profile            Profile `json:"profile"`
+	Rank               int     `json:"rank"`
+	CompatibilityScore float64 `json:"compatibility_score"`
+	ForDate            string  `json:"for_date"`
+}
+
+// FaceVerification records a selfie comparison attempt.
+type FaceVerification struct {
+	ID               uuid.UUID  `json:"id"`
+	UserID           uuid.UUID  `json:"-"`
+	SelfieURL        string     `json:"selfie_url"`
+	SelfieKey        string     `json:"-"`
+	ReferencePhotoID *uuid.UUID `json:"reference_photo_id,omitempty"`
+	Score            float64    `json:"score"`
+	Provider         string     `json:"provider"`
+	Status           string     `json:"status"`
+	Reason           string     `json:"reason,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
+	ReviewedAt       *time.Time `json:"reviewed_at,omitempty"`
+}
+
+// Gift is an entry of the static virtual-gift catalogue.
+type Gift struct {
+	Code  string `json:"code"`
+	Name  string `json:"name"`
+	Emoji string `json:"emoji"`
+	Coins int    `json:"coins"`
+}
+
+// CoinTransaction is one wallet movement.
+type CoinTransaction struct {
+	ID           uuid.UUID `json:"id"`
+	Amount       int       `json:"amount"`
+	Kind         string    `json:"kind"`
+	Reference    string    `json:"reference,omitempty"`
+	BalanceAfter int       `json:"balance_after"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+// Wallet is the current coin balance plus recent movements.
+type Wallet struct {
+	Coins        int               `json:"coins"`
+	PremiumUntil *time.Time        `json:"premium_until,omitempty"`
+	Transactions []CoinTransaction `json:"transactions"`
 }

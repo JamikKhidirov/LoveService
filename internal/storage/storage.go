@@ -18,6 +18,7 @@ import (
 
 type Storage interface {
 	Put(ctx context.Context, key string, r io.Reader, size int64, contentType string) (string, error)
+	Get(ctx context.Context, key string) (io.ReadCloser, error)
 	Delete(ctx context.Context, key string) error
 	URL(key string) string
 }
@@ -65,6 +66,18 @@ func (l *Local) Delete(_ context.Context, key string) error {
 		return nil
 	}
 	return err
+}
+
+func (l *Local) Get(_ context.Context, key string) (io.ReadCloser, error) {
+	key = filepath.ToSlash(strings.TrimLeft(key, "/"))
+	if key == "" || strings.Contains(key, "..") {
+		return nil, fmt.Errorf("invalid storage key")
+	}
+	path := filepath.Join(l.dir, filepath.FromSlash(key))
+	if !strings.HasPrefix(path, filepath.Clean(l.dir)) {
+		return nil, fmt.Errorf("invalid storage key")
+	}
+	return os.Open(path)
 }
 
 func (l *Local) URL(key string) string {
@@ -141,6 +154,10 @@ func (s *S3) Put(ctx context.Context, key string, r io.Reader, size int64, conte
 
 func (s *S3) Delete(ctx context.Context, key string) error {
 	return s.client.RemoveObject(ctx, s.bucket, strings.TrimLeft(key, "/"), minio.RemoveObjectOptions{})
+}
+
+func (s *S3) Get(ctx context.Context, key string) (io.ReadCloser, error) {
+	return s.client.GetObject(ctx, s.bucket, strings.TrimLeft(key, "/"), minio.GetObjectOptions{})
 }
 
 func (s *S3) URL(key string) string {

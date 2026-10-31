@@ -82,6 +82,14 @@ func mapError(err error) (int, string, string, map[string]any) {
 		return http.StatusForbidden, "account_inactive", "this account is not active", nil
 	case errors.Is(err, domain.ErrConversationClosed):
 		return http.StatusForbidden, "conversation_closed", "conversation is not available", nil
+	case errors.Is(err, domain.ErrPremiumRequired):
+		return http.StatusPaymentRequired, "premium_required", "premium subscription required", nil
+	case errors.Is(err, domain.ErrInsufficientCoins):
+		return http.StatusPaymentRequired, "insufficient_coins", "not enough coins for this action", nil
+	case errors.Is(err, domain.ErrPhotoRequired):
+		return http.StatusUnprocessableEntity, "photo_required", "add a profile photo before verifying", nil
+	case errors.Is(err, domain.ErrVerificationFailed):
+		return http.StatusBadGateway, "verification_failed", wrappedMessage(err, domain.ErrVerificationFailed, "face verification failed"), nil
 	case errors.Is(err, domain.ErrSelfAction):
 		return http.StatusUnprocessableEntity, "self_action", "action is not allowed on your own profile", nil
 	case errors.Is(err, domain.ErrDailyLimitReached):

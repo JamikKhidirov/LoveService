@@ -20,8 +20,9 @@ import (
 type ctxKey string
 
 const (
-	userIDKey ctxKey = "user_id"
-	roleKey   ctxKey = "role"
+	userIDKey    ctxKey = "user_id"
+	roleKey      ctxKey = "role"
+	sessionIDKey ctxKey = "session_id"
 )
 
 func pathParam(r *http.Request, name string) string { return chi.URLParam(r, name) }
@@ -34,6 +35,11 @@ func userIDFrom(ctx context.Context) uuid.UUID {
 func roleFrom(ctx context.Context) string {
 	role, _ := ctx.Value(roleKey).(string)
 	return role
+}
+
+func sessionIDFrom(ctx context.Context) string {
+	id, _ := ctx.Value(sessionIDKey).(string)
+	return id
 }
 
 func requireAuth(tokens *security.TokenManager, st *store.Store) func(http.Handler) http.Handler {
@@ -62,6 +68,7 @@ func requireAuth(tokens *security.TokenManager, st *store.Store) func(http.Handl
 			// The signature only proves the token was issued by us. Status,
 			// role and token version are read from the database so that bans,
 			// deletions, demotions and logout-all take effect immediately.
+			sessionID := claims.SessionID
 			if st != nil {
 				state, err := st.SessionState(r.Context(), id)
 				switch {
@@ -79,9 +86,29 @@ func requireAuth(tokens *security.TokenManager, st *store.Store) func(http.Handl
 					return
 				}
 				role = state.Role
+				// Access tokens minted since v1.2 carry the device session id.
+				// Revoking one session invalidates only that device.
+				if sessionID != "" {
+					sid, parseErr := uuid.Parse(sessionID)
+					if parseErr != nil {
+						writeError(w, r, slog.Default(), domain.ErrInvalidToken)
+						return
+					}
+					active, err := st.AuthSessionActive(r.Context(), id, sid)
+					if err != nil {
+						writeError(w, r, slog.Default(), err)
+						return
+					}
+					if !active {
+						writeError(w, r, slog.Default(), domain.ErrInvalidToken)
+						return
+					}
+					st.TouchAuthSession(r.Context(), sid)
+				}
 			}
 			ctx := context.WithValue(r.Context(), userIDKey, id)
 			ctx = context.WithValue(ctx, roleKey, role)
+			ctx = context.WithValue(ctx, sessionIDKey, sessionID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

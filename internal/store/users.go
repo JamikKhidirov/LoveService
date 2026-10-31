@@ -35,7 +35,8 @@ func (s *Store) CreateUserWithProfile(ctx context.Context, in CreateUserInput) (
 		VALUES ($1, $2, $3)
 		RETURNING `+userColumns,
 		in.Email, in.Phone, in.PasswordHash,
-	).Scan(&u.ID, &u.Email, &u.Phone, &u.PasswordHash, &u.Role, &u.Status, &u.TokenVersion, &u.EmailVerifiedAt, &u.CreatedAt, &u.UpdatedAt)
+	).Scan(&u.ID, &u.Email, &u.Phone, &u.PasswordHash, &u.Role, &u.Status, &u.TokenVersion, &u.EmailVerifiedAt, &u.CreatedAt, &u.UpdatedAt,
+		&u.PremiumUntil, &u.LikesUnlockedUntil, &u.Coins, &u.ELORating)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return nil, domain.ErrEmailTaken
@@ -134,9 +135,9 @@ func (s *Store) TouchLastSeen(ctx context.Context, id uuid.UUID) {
 
 func (s *Store) CreateRefreshToken(ctx context.Context, t *domain.RefreshToken) error {
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO refresh_tokens (user_id, token_hash, expires_at, user_agent, ip)
-		VALUES ($1, $2, $3, $4, $5)`,
-		t.UserID, t.TokenHash, t.ExpiresAt, t.UserAgent, t.IP,
+		INSERT INTO refresh_tokens (user_id, token_hash, expires_at, user_agent, ip, session_id)
+		VALUES ($1, $2, $3, $4, $5, $6)`,
+		t.UserID, t.TokenHash, t.ExpiresAt, t.UserAgent, t.IP, t.SessionID,
 	)
 	return err
 }
@@ -144,9 +145,9 @@ func (s *Store) CreateRefreshToken(ctx context.Context, t *domain.RefreshToken) 
 func (s *Store) GetRefreshTokenByHash(ctx context.Context, hash string) (*domain.RefreshToken, error) {
 	var t domain.RefreshToken
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, user_id, token_hash, expires_at, revoked_at, user_agent, ip, created_at
+		SELECT id, user_id, token_hash, expires_at, revoked_at, user_agent, ip, created_at, session_id
 		FROM refresh_tokens WHERE token_hash = $1`, hash,
-	).Scan(&t.ID, &t.UserID, &t.TokenHash, &t.ExpiresAt, &t.RevokedAt, &t.UserAgent, &t.IP, &t.CreatedAt)
+	).Scan(&t.ID, &t.UserID, &t.TokenHash, &t.ExpiresAt, &t.RevokedAt, &t.UserAgent, &t.IP, &t.CreatedAt, &t.SessionID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrInvalidToken
 	}
@@ -196,6 +197,9 @@ func (s *Store) LogoutAll(ctx context.Context, userID uuid.UUID) error {
 		return domain.ErrNotFound
 	}
 	if _, err := tx.Exec(ctx, `UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, userID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE auth_sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, userID); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

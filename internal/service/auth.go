@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,8 +28,10 @@ func NewAuthService(st *store.Store, tokens *security.TokenManager, m mailer.Mai
 }
 
 type RequestMeta struct {
-	UserAgent string
-	IP        string
+	UserAgent   string
+	IP          string
+	Platform    string
+	DeviceModel string
 }
 
 type RegisterInput struct {
@@ -113,7 +116,7 @@ func (s *AuthService) Register(ctx context.Context, in RegisterInput, meta Reque
 		s.log.Warn("could not send verification email", "error", sendErr)
 	}
 
-	pair, err := s.issueTokens(ctx, user, meta)
+	pair, err := s.issueTokens(ctx, user, meta, uuid.Nil)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +158,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string, meta Re
 	if user.Status != domain.StatusActive {
 		return nil, domain.ErrForbidden
 	}
-	pair, err := s.issueTokens(ctx, user, meta)
+	pair, err := s.issueTokens(ctx, user, meta, uuid.Nil)
 	if err != nil {
 		return nil, err
 	}
@@ -177,10 +180,21 @@ func (s *AuthService) Refresh(ctx context.Context, rawRefresh string, meta Reque
 	if err != nil || user.Status != domain.StatusActive {
 		return nil, domain.ErrInvalidToken
 	}
+	sessionID := uuid.Nil
+	if stored.SessionID != nil {
+		sessionID = *stored.SessionID
+		active, err := s.store.AuthSessionActive(ctx, user.ID, sessionID)
+		if err != nil {
+			return nil, err
+		}
+		if !active {
+			return nil, domain.ErrInvalidToken
+		}
+	}
 	if err := s.store.RevokeRefreshToken(ctx, stored.ID); err != nil {
 		return nil, err
 	}
-	pair, err := s.issueTokens(ctx, user, meta)
+	pair, err := s.issueTokens(ctx, user, meta, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +214,13 @@ func (s *AuthService) Logout(ctx context.Context, rawRefresh string) error {
 		}
 		return err
 	}
-	return s.store.RevokeRefreshToken(ctx, stored.ID)
+	if err := s.store.RevokeRefreshToken(ctx, stored.ID); err != nil {
+		return err
+	}
+	if stored.SessionID != nil {
+		_ = s.store.RevokeSessionByRefreshToken(ctx, *stored.SessionID)
+	}
+	return nil
 }
 
 func (s *AuthService) Me(ctx context.Context, userID uuid.UUID) (*domain.User, *domain.Profile, error) {
@@ -318,7 +338,10 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, curr
 	if err := s.store.RevokeUserRefreshTokens(ctx, userID); err != nil {
 		return nil, err
 	}
-	pair, err := s.issueTokens(ctx, user, meta)
+	if err := s.store.RevokeAllAuthSessions(ctx, userID); err != nil {
+		return nil, err
+	}
+	pair, err := s.issueTokens(ctx, user, meta, uuid.Nil)
 	if err != nil {
 		return nil, err
 	}
@@ -331,8 +354,42 @@ func (s *AuthService) LogoutAll(ctx context.Context, userID uuid.UUID) error {
 	return s.store.LogoutAll(ctx, userID)
 }
 
-func (s *AuthService) issueTokens(ctx context.Context, user *domain.User, meta RequestMeta) (TokenPair, error) {
-	access, accessExp, err := s.tokens.IssueAccess(user)
+// Sessions lists the active device sessions. The session that made the request
+// is flagged so clients can label it "this device".
+func (s *AuthService) Sessions(ctx context.Context, userID uuid.UUID, currentSessionID string) ([]domain.AuthSession, error) {
+	sessions, err := s.store.ListAuthSessions(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range sessions {
+		sessions[i].Current = sessions[i].ID.String() == currentSessionID
+	}
+	return sessions, nil
+}
+
+// RevokeSession logs out one device. If it is the current device the access
+// token stops working on the next request.
+func (s *AuthService) RevokeSession(ctx context.Context, userID, sessionID uuid.UUID) error {
+	return s.store.RevokeAuthSession(ctx, userID, sessionID)
+}
+
+func (s *AuthService) issueTokens(ctx context.Context, user *domain.User, meta RequestMeta, sessionID uuid.UUID) (TokenPair, error) {
+	if sessionID == uuid.Nil {
+		session, err := s.store.CreateAuthSession(ctx, &domain.AuthSession{
+			UserID:      user.ID,
+			Platform:    sessionPlatform(meta),
+			DeviceModel: truncateRunes(meta.DeviceModel, 120),
+			IP:          meta.IP,
+			UserAgent:   truncateRunes(meta.UserAgent, 512),
+		})
+		if err != nil {
+			return TokenPair{}, err
+		}
+		sessionID = session.ID
+	} else {
+		s.store.TouchAuthSession(ctx, sessionID)
+	}
+	access, accessExp, err := s.tokens.IssueAccessForSession(user, sessionID)
 	if err != nil {
 		return TokenPair{}, err
 	}
@@ -343,6 +400,7 @@ func (s *AuthService) issueTokens(ctx context.Context, user *domain.User, meta R
 	refreshExp := time.Now().UTC().Add(s.tokens.RefreshTTL())
 	token := &domain.RefreshToken{
 		UserID:    user.ID,
+		SessionID: &sessionID,
 		TokenHash: hash,
 		ExpiresAt: refreshExp,
 		UserAgent: meta.UserAgent,
@@ -359,6 +417,29 @@ func (s *AuthService) issueTokens(ctx context.Context, user *domain.User, meta R
 		AccessExpiry:  accessExp,
 		RefreshExpiry: refreshExp,
 	}, nil
+}
+
+func sessionPlatform(meta RequestMeta) string {
+	if p := strings.ToLower(strings.TrimSpace(meta.Platform)); p == "ios" || p == "android" || p == "web" {
+		return p
+	}
+	ua := strings.ToLower(meta.UserAgent)
+	switch {
+	case strings.Contains(ua, "android"):
+		return "android"
+	case strings.Contains(ua, "iphone"), strings.Contains(ua, "ipad"), strings.Contains(ua, "ios"):
+		return "ios"
+	default:
+		return "web"
+	}
+}
+
+func truncateRunes(v string, max int) string {
+	v = strings.TrimSpace(v)
+	if max <= 0 || len([]rune(v)) <= max {
+		return v
+	}
+	return string([]rune(v)[:max])
 }
 
 func (s *AuthService) sendCode(ctx context.Context, email, purpose string) (string, error) {

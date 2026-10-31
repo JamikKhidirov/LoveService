@@ -62,6 +62,9 @@ func (a *API) mountAccountRoutes(r chi.Router) {
 	r.Get("/devices", a.listDevices)
 	r.Post("/devices", a.saveDevice)
 	r.Delete("/devices", a.deleteDevice)
+	// Device/session management: IP, phone model and login date per device.
+	r.Get("/sessions", a.listSessions)
+	r.Delete("/sessions/{sessionID}", a.revokeSession)
 }
 
 func (a *API) mountProfileRoutes(r chi.Router) {
@@ -78,6 +81,9 @@ func (a *API) mountProfileRoutes(r chi.Router) {
 	r.Delete("/profiles/me/photos/{mediaID}", a.deleteMedia)
 	r.Patch("/profiles/me/photos/{mediaID}/primary", a.setPrimaryMedia)
 	r.Get("/profiles/{userID}", a.getProfile)
+	r.Get("/profile/stats", a.profileStats)
+	r.Get("/verification/face", a.faceVerificationStatus)
+	r.Post("/verification/face", a.submitFaceVerification)
 }
 
 func (a *API) mountDiscoveryRoutes(r chi.Router) {
@@ -87,6 +93,14 @@ func (a *API) mountDiscoveryRoutes(r chi.Router) {
 	r.Get("/discovery/likes", a.incomingLikes)
 	r.Get("/discovery/likes/sent", a.sentLikes)
 	r.Get("/discovery/stats", a.stats)
+	r.Get("/recommendations/top-picks", a.topPicks)
+	r.Get("/discovery/top-picks", a.topPicks)
+	r.Post("/discovery/likes/unlock", a.unlockLikes)
+	r.Get("/premium", a.premiumStatus)
+	r.Post("/premium/subscribe", a.subscribePremium)
+	r.Get("/wallet", a.wallet)
+	r.Post("/wallet/topup", a.topUpWallet)
+	r.Get("/gifts/catalog", a.giftCatalog)
 }
 
 func (a *API) mountSwipeRoutes(r chi.Router) {
@@ -108,6 +122,10 @@ func (a *API) mountChatRoutes(r chi.Router) {
 	r.Post("/conversations/{conversationID}/messages", a.sendMessageNested)
 	r.Post("/conversations/{conversationID}/read", a.markRead)
 	r.Post("/conversations/{conversationID}/typing", a.typing)
+	r.Post("/conversations/{conversationID}/media", a.sendChatMedia)
+	r.Post("/conversations/{conversationID}/gifts", a.sendGift)
+	r.Post("/chat/{conversationID}/media", a.sendChatMedia)
+	r.Post("/chat/{conversationID}/gifts", a.sendGift)
 	r.Post("/messages", a.sendMessage)
 }
 

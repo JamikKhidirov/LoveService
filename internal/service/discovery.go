@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -32,6 +35,9 @@ type DiscoverParams struct {
 	Limit    int
 	Offset   int
 	Expand   bool
+	// Sort is one of balanced (default), distance or rating. "rating" orders by
+	// the internal attractiveness score, "balanced" blends distance and rating.
+	Sort string
 }
 
 func (s *DiscoveryService) Discover(ctx context.Context, viewerID uuid.UUID, in DiscoverParams) (*domain.DiscoveryResult, error) {
@@ -99,11 +105,19 @@ func (s *DiscoveryService) Discover(ctx context.Context, viewerID uuid.UUID, in 
 	if offset < 0 {
 		offset = 0
 	}
+	sortMode := strings.ToLower(strings.TrimSpace(in.Sort))
+	switch sortMode {
+	case domain.DiscoverySortDistance, domain.DiscoverySortRating, domain.DiscoverySortBalanced:
+	case "":
+		sortMode = domain.DiscoverySortBalanced
+	default:
+		return nil, domain.Invalid("sort", "sort must be one of balanced, distance, rating")
+	}
 
 	query := domain.DiscoveryQuery{
 		ViewerID: viewerID, Lat: lat, Lng: lng,
 		RadiusKM: radius, MinAge: minAge, MaxAge: maxAge,
-		Genders: genders, Limit: limit, Offset: offset,
+		Genders: genders, Limit: limit, Offset: offset, Sort: sortMode,
 	}
 
 	var profiles []domain.Profile
@@ -116,7 +130,7 @@ func (s *DiscoveryService) Discover(ctx context.Context, viewerID uuid.UUID, in 
 			tierProfiles, tierTotal, err := s.store.Discover(ctx, domain.DiscoveryQuery{
 				ViewerID: viewerID, Lat: lat, Lng: lng,
 				RadiusKM: tier, MinAge: minAge, MaxAge: maxAge,
-				Genders: genders, Limit: limit, Offset: 0,
+				Genders: genders, Limit: limit, Offset: 0, Sort: sortMode,
 			})
 			if err != nil {
 				return nil, err
@@ -167,7 +181,30 @@ func (s *DiscoveryService) Discover(ctx context.Context, viewerID uuid.UUID, in 
 	}, nil
 }
 
-func (s *DiscoveryService) IncomingLikes(ctx context.Context, viewerID uuid.UUID, limit int) ([]domain.IncomingLike, error) {
+// IncomingLikes implements "who liked me". Free users only receive the counter
+// and a paywall marker; premium members and users who bought a 24h unlock get
+// the actual profiles.
+func (s *DiscoveryService) IncomingLikes(ctx context.Context, viewerID uuid.UUID, limit int) (*domain.IncomingLikesResult, error) {
+	user, err := s.store.GetUserByID(ctx, viewerID)
+	if err != nil {
+		return nil, err
+	}
+	count, err := s.store.CountIncomingLikes(ctx, viewerID)
+	if err != nil {
+		return nil, err
+	}
+	result := &domain.IncomingLikesResult{
+		Items:              []domain.IncomingLike{},
+		Count:              count,
+		PremiumActive:      user.PremiumActive(),
+		LikesUnlockedUntil: user.LikesUnlockedUntil,
+		UnlockCostCoins:    UnlockLikesCostCoins,
+	}
+	if !user.PremiumActive() && !user.LikesUnlocked() {
+		result.Locked = true
+		return result, nil
+	}
+
 	items, err := s.store.ListIncomingLikes(ctx, viewerID, limit)
 	if err != nil {
 		return nil, err
@@ -181,7 +218,9 @@ func (s *DiscoveryService) IncomingLikes(ctx context.Context, viewerID uuid.UUID
 	for i := range items {
 		items[i].Profile = profiles[i]
 	}
-	return items, nil
+	result.Items = items
+	result.Count = len(items)
+	return result, nil
 }
 
 func (s *DiscoveryService) SentLikes(ctx context.Context, viewerID uuid.UUID, limit int) ([]domain.IncomingLike, error) {
@@ -203,6 +242,135 @@ func (s *DiscoveryService) SentLikes(ctx context.Context, viewerID uuid.UUID, li
 
 func (s *DiscoveryService) Stats(ctx context.Context, userID uuid.UUID) (*domain.Stats, error) {
 	return s.store.GetStats(ctx, userID)
+}
+
+// ProfileStats returns the "impressions" panel: profile views and likes.
+func (s *DiscoveryService) ProfileStats(ctx context.Context, userID uuid.UUID) (*domain.ProfileStats, error) {
+	return s.store.GetProfileStats(ctx, userID)
+}
+
+// TopPicks returns 4–5 daily recommendations. The set is persisted per user and
+// day, so repeated calls within a day are stable and cheap.
+func (s *DiscoveryService) TopPicks(ctx context.Context, viewerID uuid.UUID) ([]domain.TopPick, error) {
+	picks, err := s.store.ListTopPicks(ctx, viewerID)
+	if err != nil {
+		return nil, err
+	}
+	if len(picks) > 0 {
+		profiles := make([]domain.Profile, 0, len(picks))
+		for i := range picks {
+			profiles = append(profiles, picks[i].Profile)
+		}
+		enrichProfiles(ctx, s.cache, profiles)
+		s.applyPrivacy(ctx, profiles)
+		for i := range picks {
+			picks[i].Profile = profiles[i]
+		}
+		return picks, nil
+	}
+
+	viewer, err := s.store.GetProfile(ctx, viewerID)
+	if err != nil {
+		return nil, err
+	}
+	if viewer.Lat == nil || viewer.Lng == nil {
+		return nil, domain.Invalid("location", "update your location first")
+	}
+	prefs, err := s.store.GetPreferences(ctx, viewerID)
+	if err != nil {
+		return nil, err
+	}
+	candidates, _, err := s.store.Discover(ctx, domain.DiscoveryQuery{
+		ViewerID: viewerID, Lat: *viewer.Lat, Lng: *viewer.Lng,
+		RadiusKM: float64(prefs.MaxDistanceKM), MinAge: prefs.MinAge, MaxAge: prefs.MaxAge,
+		Genders: prefs.PreferredGenders, Limit: 30, Sort: domain.DiscoverySortBalanced,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(candidates) == 0 {
+		return []domain.TopPick{}, nil
+	}
+
+	scored := make([]domain.TopPick, 0, len(candidates))
+	for i := range candidates {
+		scored = append(scored, domain.TopPick{
+			Profile:            candidates[i],
+			CompatibilityScore: compatibilityScore(viewer, &candidates[i]),
+			ForDate:            time.Now().UTC().Format("2006-01-02"),
+		})
+	}
+	sort.SliceStable(scored, func(i, j int) bool {
+		return scored[i].CompatibilityScore > scored[j].CompatibilityScore
+	})
+	limit := 5
+	if len(scored) < limit {
+		limit = len(scored)
+	}
+	if limit < 4 {
+		// Still return what exists; small pools simply have fewer picks.
+		limit = len(scored)
+	}
+	picks = scored[:limit]
+	for i := range picks {
+		picks[i].Rank = i + 1
+	}
+	if err := s.store.ReplaceTopPicks(ctx, viewerID, picks); err != nil {
+		return nil, err
+	}
+
+	profiles := make([]domain.Profile, 0, len(picks))
+	for i := range picks {
+		profiles = append(profiles, picks[i].Profile)
+	}
+	enrichProfiles(ctx, s.cache, profiles)
+	s.applyPrivacy(ctx, profiles)
+	for i := range picks {
+		picks[i].Profile = profiles[i]
+	}
+	return picks, nil
+}
+
+// compatibilityScore is a transparent 0..1 blend of shared interests, distance,
+// verification and profile completeness. It intentionally uses no hidden data.
+func compatibilityScore(viewer, candidate *domain.Profile) float64 {
+	score := 0.0
+	if len(viewer.Interests) > 0 && len(candidate.Interests) > 0 {
+		set := make(map[string]struct{}, len(viewer.Interests))
+		for _, v := range viewer.Interests {
+			set[strings.ToLower(strings.TrimSpace(v))] = struct{}{}
+		}
+		shared := 0
+		for _, v := range candidate.Interests {
+			if _, ok := set[strings.ToLower(strings.TrimSpace(v))]; ok {
+				shared++
+			}
+		}
+		union := len(set) + len(candidate.Interests) - shared
+		if union > 0 {
+			score += 0.5 * float64(shared) / float64(union)
+		}
+	}
+	if candidate.DistanceKM != nil {
+		proximity := 1 - *candidate.DistanceKM/50
+		if proximity < 0 {
+			proximity = 0
+		}
+		score += 0.3 * proximity
+	}
+	if candidate.IsVerified {
+		score += 0.1
+	}
+	if len(candidate.Photos) > 0 {
+		score += 0.05
+	}
+	if candidate.Bio != "" {
+		score += 0.05
+	}
+	if score > 1 {
+		score = 1
+	}
+	return math.Round(score*1000) / 1000
 }
 
 func (s *DiscoveryService) applyPrivacy(ctx context.Context, profiles []domain.Profile) {

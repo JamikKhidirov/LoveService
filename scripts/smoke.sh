@@ -43,6 +43,51 @@ for path in /api/v1/conversations /api/v1/matches /api/v1/notifications /api/v1/
   say "  OK $path"
 done
 
+say "== device sessions =="
+SESSIONS=$(curl -s "$BASE_URL/api/v1/sessions" -H "Authorization: Bearer $TOKEN")
+printf '%s' "$SESSIONS" | grep -q '"current":true' || fail "no current session: $SESSIONS"
+say "  OK sessions"
+
+say "== v1.2 monetization, ranking and insights =="
+for path in /api/v1/premium /api/v1/wallet /api/v1/gifts/catalog /api/v1/profile/stats /api/v1/recommendations/top-picks; do
+  code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL$path" -H "Authorization: Bearer $TOKEN")
+  [ "$code" = "200" ] || fail "$path returned $code"
+  say "  OK $path"
+done
+
+TOPUP=$(curl -s -X POST "$BASE_URL/api/v1/wallet/topup" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"coins":500,"reference":"smoke"}')
+printf '%s' "$TOPUP" | grep -q '"coins"' || fail "top-up failed: $TOPUP"
+
+LIKES=$(curl -s "$BASE_URL/api/v1/discovery/likes" -H "Authorization: Bearer $TOKEN")
+printf '%s' "$LIKES" | grep -q '"premium_required"' || fail "likes paywall missing: $LIKES"
+UNLOCK=$(curl -s -X POST "$BASE_URL/api/v1/discovery/likes/unlock" -H "Authorization: Bearer $TOKEN")
+printf '%s' "$UNLOCK" | grep -q '"likes_unlocked_until"' || fail "unlock failed: $UNLOCK"
+REVEALED=$(curl -s "$BASE_URL/api/v1/discovery/likes" -H "Authorization: Bearer $TOKEN")
+printf '%s' "$REVEALED" | grep -q '"premium_required":false' || fail "likes still locked: $REVEALED"
+say "  OK who-liked-me paywall + unlock"
+
+for sort in balanced distance rating; do
+  code=$(curl -s -o /dev/null -w '%{http_code}' \
+    "$BASE_URL/api/v1/discovery?lat=55.7558&lng=37.6173&radius_km=3000&expand=false&limit=5&sort=$sort" \
+    -H "Authorization: Bearer $TOKEN")
+  [ "$code" = "200" ] || fail "discovery sort=$sort returned $code"
+done
+say "  OK discovery ranking modes"
+
+CONV=$(curl -s "$BASE_URL/api/v1/conversations" -H "Authorization: Bearer $TOKEN" \
+  | grep -o '"id":"[^"]*"' | head -n 1 | cut -d'"' -f4)
+if [ -n "$CONV" ]; then
+  GIFT=$(curl -s -X POST "$BASE_URL/api/v1/chat/$CONV/gifts" \
+    -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+    -d '{"gift_code":"rose"}')
+  printf '%s' "$GIFT" | grep -q '"type":"gift"' || fail "gift failed: $GIFT"
+  say "  OK virtual gift"
+else
+  say "  SKIP virtual gift (no conversation)"
+fi
+
 say "== technical admin =="
 ADMIN_LOGIN=$(curl -s -X POST "$BASE_URL/api/v1/auth/login" \
   -H 'Content-Type: application/json' \

@@ -7,6 +7,10 @@ MinIO/S3, nearby discovery with an expanding radius, likes / dislikes /
 superlikes, rewind, matches, real-time chat, notifications, blocks/reports,
 moderation, and **audited lawful-access tooling for technical administrators**.
 
+Version **1.2** adds monetization (“who liked me”, Premium, coins and virtual
+gifts), ELO attractiveness ranking, device/session management, automatic face
+verification, profile statistics and daily top picks.
+
 ![Demo flow](assets/demo-flow.svg)
 
 ![Architecture](assets/architecture.svg)
@@ -49,11 +53,24 @@ Demo accounts (seeded automatically):
   primary photo, storage cleanup on delete.
 - **Discovery** — haversine distance in SQL, age/gender filters, privacy-aware
   distance/online visibility, automatic radius expansion
-  (5 → 12.5 → 30 → 75 → … km).
+  (5 → 12.5 → 30 → 75 → … km), ELO attractiveness ranking with
+  `sort=balanced|distance|rating`, daily top picks.
+- **Monetization** — “who liked me” hidden behind Premium or a 100-coin 24h
+  unlock, mock subscription/top-up endpoints, coin wallet with transaction
+  history, virtual gifts in chat (rose 10 · heart 25 · teddy 50 · ring 200 ·
+  crown 500).
 - **Swipes** — like/dislike/superlike, reciprocal-like match creation in one
-  transaction, conversation creation, daily limits, rewind window.
+  transaction, conversation creation, daily limits, rewind window (ELO changes
+  are reversed on rewind).
 - **Chat** — conversations, paginated messages, read receipts, typing events,
-  WebSocket push plus REST fallback.
+  photo/video messages, coin gifts, WebSocket push plus REST fallback.
+- **Verification** — automatic face check: a selfie is compared with the primary
+  profile photo by a pluggable ML provider (`FACE_VERIFY_*`), with a profile
+  badge on approval and a full history of attempts.
+- **Profile insights** — profile views (total and last 7 days), likes received,
+  matches, and daily top picks.
+- **Device management** — every login is a session with IP, platform, phone model
+  and login date; list devices, log out one device or everywhere.
 - **Notifications** — in-app notifications generated from domain events through a
   transactional outbox, Kafka fan-out (or in-process fallback), WebSocket push.
 - **Safety** — blocks, reports, moderation queue.
@@ -73,6 +90,7 @@ Demo accounts (seeded automatically):
 | Document | Contents |
 |---|---|
 | [docs/API.md](docs/API.md) | Endpoint reference and examples |
+| [docs/FEATURES.md](docs/FEATURES.md) | Monetization, ELO ranking, verification, gifts and sessions |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, data flow, design decisions |
 | [docs/WEBSOCKET.md](docs/WEBSOCKET.md) | Real-time protocol and event catalogue |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Docker, environment variables, mobile LAN setup |
@@ -83,6 +101,33 @@ Demo accounts (seeded automatically):
 | [docs/EMAIL.md](docs/EMAIL.md) | Self-hosted email delivery: SMTP setup, HTML letters, preview |
 | [docs/postman_collection.json](docs/postman_collection.json) | Postman collection (Import → Collection) |
 | [docs/openapi.yaml](docs/openapi.yaml) | OpenAPI 3.1 specification |
+
+## Device management (sessions)
+
+Every successful login/registration creates a session row with the client IP,
+platform, phone model and login date. Access tokens carry the session id, so a
+revoked device is logged out on its next request rather than after the 15-minute
+token TTL.
+
+```bash
+# Native clients send these headers on login/register:
+#   X-Device-Platform: ios|android
+#   X-Device-Model:    iPhone 15 Pro
+
+curl -s http://localhost:8080/api/v1/sessions \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -sX DELETE http://localhost:8080/api/v1/sessions/<session_id> \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -sX POST http://localhost:8080/api/v1/auth/logout-all \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+`GET /api/v1/sessions` returns `id`, `platform`, `device_model`, `ip`,
+`user_agent`, `created_at` (login date), `last_seen_at` and `current` (the device
+making the request). `DELETE` logs out one device; `logout-all` revokes every
+session and bumps `token_version`, invalidating all access tokens immediately.
 
 ## Local development without Docker
 

@@ -20,6 +20,7 @@ import (
 	"github.com/loveservice/loveservice/internal/store"
 	"github.com/loveservice/loveservice/internal/transport/httpapi"
 	"github.com/loveservice/loveservice/internal/transport/ws"
+	faceverify "github.com/loveservice/loveservice/internal/verification"
 )
 
 // Container owns every long-lived dependency of the process. Construction is
@@ -73,10 +74,13 @@ func NewContainer(ctx context.Context, cfg *config.Config, log *slog.Logger, ver
 	profileSvc := service.NewProfileService(st, c, media, cfg.MaxUploadMB, cfg.AutoApproveMedia, log)
 	discoverySvc := service.NewDiscoveryService(st, c)
 	swipeSvc := service.NewSwipeService(st, c, cfg.DailyLikeLimit, cfg.DailySuperlikeLimit, cfg.RewindWindow, log)
-	chatSvc := service.NewChatService(st, c, hub, log)
+	chatSvc := service.NewChatService(st, c, hub, log, service.WithChatMedia(media, cfg.MaxUploadMB))
 	notificationSvc := service.NewNotificationService(st, hub, log)
 	accountSvc := service.NewAccountService(st, c)
 	adminSvc := service.NewAdminService(st, cfg.AdminRequireSecondApproval, log)
+	premiumSvc := service.NewPremiumService(st)
+	verifier := faceverify.New(cfg.FaceVerifyURL, cfg.FaceVerifyAPIKey, cfg.FaceVerifyTimeout, log)
+	verificationSvc := service.NewVerificationService(st, media, verifier, cfg.FaceVerifyThreshold, cfg.MaxUploadMB, log)
 	wsHandler := ws.NewHandler(hub, tokens, st, chatSvc, cfg.CORSOrigins, log)
 
 	if cfg.SeedDemo {
@@ -97,8 +101,8 @@ func NewContainer(ctx context.Context, cfg *config.Config, log *slog.Logger, ver
 		Config: cfg, Logger: log, Store: st, Cache: c, Tokens: tokens,
 		Auth: authSvc, Profiles: profileSvc, Discovery: discoverySvc, Swipes: swipeSvc,
 		Chat: chatSvc, Notifications: notificationSvc, Account: accountSvc,
-		Admin: adminSvc,
-		WS:    wsHandler, MediaHandler: mediaHandler, Version: version,
+		Admin: adminSvc, Premium: premiumSvc, Verification: verificationSvc,
+		WS: wsHandler, MediaHandler: mediaHandler, Version: version,
 	})
 
 	return &Container{

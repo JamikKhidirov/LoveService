@@ -31,9 +31,24 @@ func TestOpenAPIDocument(t *testing.T) {
 		"/api/v1/matches:",
 		"/api/v1/conversations:",
 		"/api/v1/account/export:",
+		"/api/v1/sessions:",
+		"/api/v1/sessions/{sessionID}:",
+		"/api/v1/profile/stats:",
+		"/api/v1/recommendations/top-picks:",
+		"/api/v1/discovery/likes/unlock:",
+		"/api/v1/premium:",
+		"/api/v1/premium/subscribe:",
+		"/api/v1/wallet:",
+		"/api/v1/wallet/topup:",
+		"/api/v1/gifts/catalog:",
+		"/api/v1/verification/face:",
+		"/api/v1/chat/{conversationID}/gifts:",
+		"/api/v1/chat/{conversationID}/media:",
 		"/api/v1/admin/stats:",
 		"/api/v1/admin/legal-requests:",
 		"/api/v1/admin/legal-requests/{requestID}/export:",
+		"Premium",
+		"Verification",
 		"TechnicalAdmin",
 		"Lawful access only",
 	} {
@@ -46,18 +61,18 @@ func TestOpenAPIDocument(t *testing.T) {
 	}
 }
 
+type postmanItem struct {
+	Name string        `json:"name"`
+	Item []postmanItem `json:"item"`
+}
+
 func TestPostmanCollection(t *testing.T) {
 	var collection struct {
 		Info struct {
 			Name   string `json:"name"`
 			Schema string `json:"schema"`
 		} `json:"info"`
-		Item []struct {
-			Name string `json:"name"`
-			Item []struct {
-				Name string `json:"name"`
-			} `json:"item"`
-		} `json:"item"`
+		Item []postmanItem `json:"item"`
 	}
 	if err := json.Unmarshal([]byte(readDoc(t, "postman_collection.json")), &collection); err != nil {
 		t.Fatalf("invalid postman JSON: %v", err)
@@ -73,9 +88,63 @@ func TestPostmanCollection(t *testing.T) {
 	for _, item := range collection.Item {
 		folders[item.Name] = true
 	}
-	for _, want := range []string{"Auth", "Profile", "Media", "Discovery", "Swipes", "Matches & Chat", "Admin (moderator / admin)", "Technical Admin / Lawful Access"} {
+	for _, want := range []string{"Auth", "Profile", "Media", "Discovery", "Swipes", "Matches & Chat", "Premium & Gifts", "Safety & Devices", "Admin (moderator / admin)", "Technical Admin / Lawful Access"} {
 		if !folders[want] {
 			t.Errorf("postman collection is missing folder %q", want)
+		}
+	}
+
+	// New v1.2 requests must be importable and visible in the collection.
+	names := map[string]bool{}
+	var walk func(items []postmanItem)
+	walk = func(items []postmanItem) {
+		for _, item := range items {
+			names[item.Name] = true
+			walk(item.Item)
+		}
+	}
+	walk(collection.Item)
+	for _, want := range []string{
+		"List sessions", "Revoke session", "Profile stats",
+		"Face verification status", "Submit face selfie", "Top picks",
+		"Unlock who liked me", "Premium status", "Subscribe (month)",
+		"Wallet", "Top up 500 coins", "Gift catalog", "Send gift",
+		"Send chat media",
+	} {
+		if !names[want] {
+			t.Errorf("postman collection is missing request %q", want)
+		}
+	}
+}
+
+func TestFeatureDocumentation(t *testing.T) {
+	doc := readDoc(t, "FEATURES.md")
+	for _, want := range []string{
+		"Who liked me", "Premium", "elo_rating", "Daily top picks",
+		"Profile statistics", "Device and session management",
+		"Face verification", "FACE_VERIFY_URL", "Gift", "rose",
+	} {
+		if !strings.Contains(doc, want) {
+			t.Errorf("FEATURES.md is missing %q", want)
+		}
+	}
+	api := readDoc(t, "API.md")
+	for _, want := range []string{
+		"/api/v1/sessions", "/api/v1/profile/stats",
+		"/api/v1/recommendations/top-picks", "/api/v1/premium",
+		"/api/v1/verification/face", "premium_required", "insufficient_coins",
+	} {
+		if !strings.Contains(api, want) {
+			t.Errorf("API.md is missing %q", want)
+		}
+	}
+	readme, err := os.ReadFile("../../README.md")
+	if err != nil {
+		t.Fatalf("read README.md: %v", err)
+	}
+	for _, want := range []string{"Device management", "/api/v1/sessions", "X-Device-Model", "Premium", "face"} {
+		if !strings.Contains(string(readme), want) {
+			t.Errorf("README.md is missing %q", want)
 		}
 	}
 }

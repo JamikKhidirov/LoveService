@@ -100,3 +100,37 @@ func TestCreateLegalRequestValidatesInput(t *testing.T) {
 		t.Fatal("expected unknown scope to be rejected")
 	}
 }
+
+func TestPremiumValidatesPlan(t *testing.T) {
+	svc := service.NewPremiumService(nil)
+	_, err := svc.Subscribe(context.Background(), uuid.New(), "lifetime")
+	if err == nil {
+		t.Fatal("expected an unknown plan to be rejected")
+	}
+	if _, ok := err.(*domain.ValidationError); !ok {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+}
+
+func TestChatRejectsUnknownGift(t *testing.T) {
+	svc := service.NewChatService(nil, nil, nil, slog.Default())
+	_, err := svc.SendGift(context.Background(), uuid.New(), uuid.New(), "unicorn")
+	if err == nil {
+		t.Fatal("expected an unknown gift code to be rejected")
+	}
+	if _, ok := err.(*domain.ValidationError); !ok {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+}
+
+func TestChatGiftCatalogIsACopy(t *testing.T) {
+	svc := service.NewChatService(nil, nil, nil, slog.Default())
+	catalog := svc.GiftCatalog()
+	if len(catalog) == 0 {
+		t.Fatal("expected a non-empty gift catalogue")
+	}
+	catalog[0].Coins = -1
+	if svc.GiftCatalog()[0].Coins == -1 {
+		t.Fatal("GiftCatalog must not expose the internal slice")
+	}
+}

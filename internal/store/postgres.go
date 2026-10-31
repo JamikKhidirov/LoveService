@@ -150,7 +150,8 @@ func isForeignKeyViolation(err error) bool {
 
 func scanUser(row pgx.Row) (*domain.User, error) {
 	var u domain.User
-	err := row.Scan(&u.ID, &u.Email, &u.Phone, &u.PasswordHash, &u.Role, &u.Status, &u.TokenVersion, &u.EmailVerifiedAt, &u.CreatedAt, &u.UpdatedAt)
+	err := row.Scan(&u.ID, &u.Email, &u.Phone, &u.PasswordHash, &u.Role, &u.Status, &u.TokenVersion, &u.EmailVerifiedAt, &u.CreatedAt, &u.UpdatedAt,
+		&u.PremiumUntil, &u.LikesUnlockedUntil, &u.Coins, &u.ELORating)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrNotFound
 	}
@@ -160,4 +161,5 @@ func scanUser(row pgx.Row) (*domain.User, error) {
 	return &u, nil
 }
 
-const userColumns = `id, email, phone, password_hash, role, status, token_version, email_verified_at, created_at, updated_at`
+const userColumns = `id, email, phone, password_hash, role, status, token_version, email_verified_at, created_at, updated_at,
+       premium_until, likes_unlocked_until, coins, elo_rating`

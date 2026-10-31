@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -19,6 +20,7 @@ const conversationFields = `c.id, c.match_id, c.created_at, c.last_message_at,
        COALESCE(lm.body, ''),
        COALESCE(lm.type, 'text'),
        lm.media_url,
+       COALESCE(lm.metadata, '{}'::jsonb),
        lm.read_at,
        COALESCE(lm.created_at, c.created_at)`
 
@@ -81,12 +83,13 @@ func scanConversationAnd(row pgx.Row) (*domain.Conversation, error) {
 	var lastID, lastSender uuid.UUID
 	var lastBody, lastType string
 	var lastMediaURL *string
+	var metadataJSON []byte
 	var lastReadAt *time.Time
 	var lastCreated time.Time
 
 	p, err := scanProfileAnd(row,
 		&c.ID, &c.MatchID, &c.CreatedAt, &c.LastMessageAt, &c.UnreadCount,
-		&lastID, &lastSender, &lastBody, &lastType, &lastMediaURL, &lastReadAt, &lastCreated,
+		&lastID, &lastSender, &lastBody, &lastType, &lastMediaURL, &metadataJSON, &lastReadAt, &lastCreated,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrNotFound
@@ -96,7 +99,7 @@ func scanConversationAnd(row pgx.Row) (*domain.Conversation, error) {
 	}
 	c.Peer = p
 	if lastID != uuid.Nil {
-		c.LastMessage = &domain.Message{
+		m := &domain.Message{
 			ID:             lastID,
 			ConversationID: c.ID,
 			SenderID:       lastSender,
@@ -106,6 +109,10 @@ func scanConversationAnd(row pgx.Row) (*domain.Conversation, error) {
 			ReadAt:         lastReadAt,
 			CreatedAt:      lastCreated,
 		}
+		if len(metadataJSON) > 0 {
+			_ = json.Unmarshal(metadataJSON, &m.Metadata)
+		}
+		c.LastMessage = m
 	}
 	return &c, nil
 }
@@ -130,7 +137,7 @@ func (s *Store) ListMessages(ctx context.Context, conversationID uuid.UUID, befo
 		limit = 30
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, conversation_id, sender_id, body, type, media_url, read_at, created_at
+		SELECT id, conversation_id, sender_id, body, type, media_url, metadata, read_at, created_at
 		FROM messages
 		WHERE conversation_id = $1
 		  AND ($2::timestamptz IS NULL OR created_at < $2)
@@ -144,8 +151,12 @@ func (s *Store) ListMessages(ctx context.Context, conversationID uuid.UUID, befo
 	out := make([]domain.Message, 0, limit)
 	for rows.Next() {
 		var m domain.Message
-		if err := rows.Scan(&m.ID, &m.ConversationID, &m.SenderID, &m.Body, &m.Type, &m.MediaURL, &m.ReadAt, &m.CreatedAt); err != nil {
+		var metadataJSON []byte
+		if err := rows.Scan(&m.ID, &m.ConversationID, &m.SenderID, &m.Body, &m.Type, &m.MediaURL, &metadataJSON, &m.ReadAt, &m.CreatedAt); err != nil {
 			return nil, err
+		}
+		if len(metadataJSON) > 0 {
+			_ = json.Unmarshal(metadataJSON, &m.Metadata)
 		}
 		out = append(out, m)
 	}
@@ -165,6 +176,7 @@ type CreateMessageInput struct {
 	Body           string
 	Type           string
 	MediaURL       *string
+	Metadata       map[string]any
 }
 
 func (s *Store) CreateMessage(ctx context.Context, in CreateMessageInput) (*domain.Message, error) {
@@ -190,14 +202,22 @@ func (s *Store) CreateMessage(ctx context.Context, in CreateMessageInput) (*doma
 	}
 
 	var m domain.Message
+	var metadataJSON []byte
+	if in.Metadata == nil {
+		in.Metadata = map[string]any{}
+	}
+	rawMetadata, _ := json.Marshal(in.Metadata)
 	err = tx.QueryRow(ctx, `
-		INSERT INTO messages (conversation_id, sender_id, body, type, media_url)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, conversation_id, sender_id, body, type, media_url, read_at, created_at`,
-		in.ConversationID, in.SenderID, in.Body, in.Type, in.MediaURL,
-	).Scan(&m.ID, &m.ConversationID, &m.SenderID, &m.Body, &m.Type, &m.MediaURL, &m.ReadAt, &m.CreatedAt)
+		INSERT INTO messages (conversation_id, sender_id, body, type, media_url, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, conversation_id, sender_id, body, type, media_url, metadata, read_at, created_at`,
+		in.ConversationID, in.SenderID, in.Body, in.Type, in.MediaURL, rawMetadata,
+	).Scan(&m.ID, &m.ConversationID, &m.SenderID, &m.Body, &m.Type, &m.MediaURL, &metadataJSON, &m.ReadAt, &m.CreatedAt)
 	if err != nil {
 		return nil, err
+	}
+	if len(metadataJSON) > 0 {
+		_ = json.Unmarshal(metadataJSON, &m.Metadata)
 	}
 	if _, err := tx.Exec(ctx, `UPDATE conversations SET last_message_at = $2 WHERE id = $1`, in.ConversationID, m.CreatedAt); err != nil {
 		return nil, err

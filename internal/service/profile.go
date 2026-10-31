@@ -65,6 +65,9 @@ func (s *ProfileService) GetUser(ctx context.Context, viewerID, targetID uuid.UU
 	if err != nil {
 		return nil, err
 	}
+	// Profile statistics: one view per viewer/target/day. Failures must never
+	// break the profile response.
+	_ = s.store.RecordProfileView(ctx, viewerID, targetID)
 	enrichProfile(ctx, s.cache, p)
 	if s.cache != nil {
 		p.Online = s.cache.IsOnline(ctx, targetID)

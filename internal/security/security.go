@@ -35,6 +35,9 @@ type Claims struct {
 	Email  string `json:"email"`
 	Role   string `json:"role"`
 	Type   string `json:"typ"`
+	// SessionID identifies the auth_sessions row (one device login). Revoking
+	// that row invalidates this access token immediately.
+	SessionID string `json:"sid,omitempty"`
 	// Version mirrors users.token_version. Bumping it invalidates all access
 	// tokens issued before the bump (logout-all, password change, forced ban).
 	Version int `json:"ver"`
@@ -61,6 +64,12 @@ func (m *TokenManager) AccessTTL() time.Duration  { return m.accessTTL }
 func (m *TokenManager) RefreshTTL() time.Duration { return m.refreshTTL }
 
 func (m *TokenManager) IssueAccess(user *domain.User) (string, time.Time, error) {
+	return m.IssueAccessForSession(user, uuid.Nil)
+}
+
+// IssueAccessForSession mints an access token bound to a device session. An
+// empty session id is allowed for backwards compatibility and internal callers.
+func (m *TokenManager) IssueAccessForSession(user *domain.User, sessionID uuid.UUID) (string, time.Time, error) {
 	now := time.Now().UTC()
 	expires := now.Add(m.accessTTL)
 	claims := Claims{
@@ -78,6 +87,9 @@ func (m *TokenManager) IssueAccess(user *domain.User) (string, time.Time, error)
 			NotBefore: jwt.NewNumericDate(now.Add(-5 * time.Second)),
 			ExpiresAt: jwt.NewNumericDate(expires),
 		},
+	}
+	if sessionID != uuid.Nil {
+		claims.SessionID = sessionID.String()
 	}
 	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(m.secret)
 	if err != nil {

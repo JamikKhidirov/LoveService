@@ -37,6 +37,8 @@ type Deps struct {
 	Notifications *service.NotificationService
 	Account       *service.AccountService
 	Admin         *service.AdminService
+	Premium       *service.PremiumService
+	Verification  *service.VerificationService
 	WS            *ws.Handler
 	MediaHandler  http.Handler
 	Version       string
@@ -56,6 +58,8 @@ type API struct {
 	notifications *service.NotificationService
 	account       *service.AccountService
 	admin         *service.AdminService
+	premium       *service.PremiumService
+	verification  *service.VerificationService
 	ws            *ws.Handler
 	version       string
 }
@@ -84,6 +88,8 @@ func NewRouter(d Deps) http.Handler {
 		notifications: d.Notifications,
 		account:       d.Account,
 		admin:         d.Admin,
+		premium:       d.Premium,
+		verification:  d.Verification,
 		ws:            d.WS,
 		version:       d.Version,
 	}

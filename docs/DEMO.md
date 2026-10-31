@@ -139,8 +139,48 @@ curl -s http://localhost:8080/api/v1/admin/audit-logs -H "Authorization: Bearer 
 curl -s http://localhost:8080/api/v1/account/export -H "Authorization: Bearer $TOKEN" | jq '.data | keys'
 ```
 
+## 10. Who liked me, Premium and gifts
+
+```bash
+# Free users only see the counter
+curl -s http://localhost:8080/api/v1/discovery/likes -H "Authorization: Bearer $TOKEN" | jq '.data'
+
+# Reveal for 24 hours with 100 coins (top up first)
+curl -sX POST http://localhost:8080/api/v1/wallet/topup \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"coins":500,"reference":"demo"}' | jq '.data.coins'
+curl -sX POST http://localhost:8080/api/v1/discovery/likes/unlock -H "Authorization: Bearer $TOKEN" | jq
+curl -s http://localhost:8080/api/v1/discovery/likes -H "Authorization: Bearer $TOKEN" | jq '.data | {count, premium_required}'
+
+# Send a rose (10 coins)
+curl -sX POST "http://localhost:8080/api/v1/chat/$CONV/gifts" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"gift_code":"rose"}' | jq '.data | {gift, sender_coins}'
+```
+
+## 11. Top picks, stats and face verification
+
+```bash
+curl -s http://localhost:8080/api/v1/recommendations/top-picks -H "Authorization: Bearer $TOKEN" | jq '.data.items | map({rank, compatibility_score})'
+curl -s http://localhost:8080/api/v1/profile/stats -H "Authorization: Bearer $TOKEN" | jq '.data'
+
+# Multipart selfie; the dev provider auto-approves
+curl -sX POST http://localhost:8080/api/v1/verification/face \
+  -H "Authorization: Bearer $TOKEN" -F 'file=@photo.jpg' | jq '.data | {status, score, provider}'
+```
+
+## 12. Device sessions
+
+```bash
+curl -s http://localhost:8080/api/v1/sessions -H "Authorization: Bearer $TOKEN" | jq '.data.items[] | {id, platform, device_model, ip, created_at, current}'
+```
+
+`DELETE /api/v1/sessions/{id}` logs out one device; `POST /api/v1/auth/logout-all`
+logs out everywhere.
+
 ## Postman
 
 Import `docs/postman_collection.json`. Run **Auth → Login (demo)** first; the
-test script stores the tokens in collection variables. The **Technical Admin /
-Lawful Access** folder is labelled with the lawful-access warning.
+test script stores the tokens in collection variables. The **Premium & Gifts**
+folder covers monetization, and the **Technical Admin / Lawful Access** folder is
+labelled with the lawful-access warning.
